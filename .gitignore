@@ -1,0 +1,149 @@
+# 依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+yarn.lock
+
+# 编译输出
+out/
+dist/
+build/
+*.js
+*.js.map
+*.d.ts
+!webpack.config.js
+!gulpfile.js
+
+# TypeScript 缓存
+*.tsbuildinfo
+
+# VS Code 扩展相关
+*.vsix
+.vscode-test/
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# 运行时数据
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage 目录 - 测试覆盖率报告
+coverage/
+*.lcov
+.nyc_output
+
+# 临时文件夹
+tmp/
+temp/
+
+# 系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE 文件
+.idea/
+*.swp
+*.swo
+*~
+
+# 缓存
+.cache/
+.parcel-cache/
+.eslintcache
+
+# 测试
+test-results/
+playwright-report/
+test-results.xml
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+
+# 本地配置文件
+local.json
+config.local.js
+
+# 其他常见忽略项
+*.tgz
+*.tar
+.grunt
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/ 

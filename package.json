@@ -1,0 +1,192 @@
+{
+  "name": "vscode-local-comment",
+  "displayName": "本地注释 (Local Comment)",
+  "description": "在代码中添加本地注释，支持标签功能，不修改原文件，也不会将本地注释提交到版本管理工具",
+  "version": "1.0.0",
+  "publisher": "sangliang",
+  "author": {
+    "name": "SangLiang",
+    "email": "378305868@qq.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SangLiang/vscode-local-commet.git"
+  },
+  "homepage": "https://github.com/SangLiang/vscode-local-commet",
+  "bugs": {
+    "url": "https://github.com/SangLiang/vscode-local-commet/issues"
+  },
+  "keywords": [
+    "comment",
+    "local",
+    "annotation",
+    "tag",
+    "note",
+    "documentation",
+    "code-comment",
+    "vscode-extension",
+    "productivity",
+    "developer-tools"
+  ],
+  "categories": [
+    "Other",
+    "Education"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#2B5797",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "localComment.addComment",
+        "title": "Add Local Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.editComment",
+        "title": "Edit Local Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.editCommentInPlace",
+        "title": "Edit Comment In Place",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.editCommentFromHover",
+        "title": "Edit Comment from Hover",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.removeComment",
+        "title": "Remove Local Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.toggleComments",
+        "title": "Toggle Comments Display",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.goToComment",
+        "title": "Go to Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.goToTagDeclaration",
+        "title": "Go to Tag Declaration",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.refreshTree",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.deleteCommentFromTree",
+        "title": "Delete Comment",
+        "icon": "$(trash)",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.editCommentFromTree",
+        "title": "Edit Comment",
+        "icon": "$(edit)",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.showStorageLocation",
+        "title": "Show Storage Location",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.showStorageStats",
+        "title": "Show Comment Statistics",
+        "category": "Local Comment"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "localComments",
+          "name": "本地注释",
+          "when": "true"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "localComment.addComment",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localComment.removeComment",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localComment.editCommentInPlace",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "localComment.addComment",
+          "group": "localComment",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "localComment.removeComment",
+          "group": "localComment",
+          "when": "editorTextFocus"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "localComment.refreshTree",
+          "when": "view == localComments",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "localComment.editCommentFromTree",
+          "when": "view == localComments && viewItem == comment",
+          "group": "inline"
+        },
+        {
+          "command": "localComment.deleteCommentFromTree",
+          "when": "view == localComments && viewItem == comment",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  }
+}
