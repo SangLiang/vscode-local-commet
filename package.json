@@ -2,7 +2,7 @@
   "name": "vscode-local-comment",
   "displayName": "本地注释 (Local Comment)",
   "description": "在代码中添加本地注释，支持标签功能，不修改原文件，也不会将本地注释提交到版本管理工具",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "sangliang",
   "author": {
     "name": "SangLiang",

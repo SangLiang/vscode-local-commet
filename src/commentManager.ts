@@ -307,7 +307,59 @@ export class CommentManager {
             return;
         }
 
-        // 将这个文件标记为需要智能更新
+        // 检查是否有直接编辑注释所在行的情况
+        let hasDirectLineEdit = false;
+        let directUpdates = 0;
+
+        for (const change of event.contentChanges) {
+            const startLine = change.range.start.line;
+            const endLine = change.range.end.line;
+            
+            // 检查变化范围内是否有注释
+            for (const comment of fileComments) {
+                if (comment.line >= startLine && comment.line <= endLine) {
+                    // 用户直接编辑了注释所在的行，立即更新代码快照
+                    try {
+                        const currentLineContent = event.document.lineAt(comment.line).text.trim();
+                        if (currentLineContent !== (comment.lineContent || '').trim()) {
+                            comment.lineContent = currentLineContent;
+                            directUpdates++;
+                            hasDirectLineEdit = true;
+                            console.log(`⚡ 检测到直接编辑注释行 ${comment.line + 1}，立即更新代码快照`);
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ 无法立即更新注释 ${comment.id}:`, error);
+                    }
+                }
+            }
+        }
+
+        // 如果有直接编辑，立即保存并刷新
+        if (hasDirectLineEdit) {
+            await this.saveComments();
+            console.log(`⚡ 立即更新完成，共更新 ${directUpdates} 个注释`);
+            
+            // 立即刷新注释显示
+            setTimeout(() => {
+                vscode.commands.executeCommand('localComment.refreshComments');
+            }, 10);
+            
+            // 如果只是直接编辑，不需要执行智能匹配
+            const needsSmartUpdate = fileComments.some(comment => {
+                // 检查是否有注释可能需要智能匹配（不在编辑范围内的注释）
+                return !event.contentChanges.some(change => 
+                    comment.line >= change.range.start.line && 
+                    comment.line <= change.range.end.line
+                );
+            });
+            
+            if (!needsSmartUpdate) {
+                console.log(`✅ 所有注释都通过直接编辑更新，跳过智能匹配`);
+                return;
+            }
+        }
+
+        // 将这个文件标记为需要智能更新（处理可能需要重新匹配的注释）
         this.pendingUpdates.add(filePath);
 
         // 使用防抖机制：清除之前的定时器，设置新的定时器
@@ -315,17 +367,17 @@ export class CommentManager {
             clearTimeout(this.updateTimer);
         }
 
-        // 延迟1秒后执行智能更新（用户停止编辑1秒后）
+        // 延迟300ms后执行智能更新（减少延迟，但仍然防抖）
         this.updateTimer = setTimeout(async () => {
             console.log('🧠 开始智能更新注释代码快照...');
             await this.performSmartUpdates();
             this.updateTimer = null;
-        }, 1000);
-
-        // 立即触发注释重新渲染
-        setTimeout(() => {
-            vscode.commands.executeCommand('localComment.refreshComments');
-        }, 50);
+            
+            // 智能更新完成后再触发注释重新渲染
+            setTimeout(() => {
+                vscode.commands.executeCommand('localComment.refreshComments');
+            }, 10);
+        }, 300);
     }
 
     /**
@@ -370,9 +422,32 @@ export class CommentManager {
                     } catch (error) {
                         console.warn(`⚠️ 无法智能更新注释 ${comment.id}:`, error);
                     }
+                } else {
+                    // 如果找不到匹配位置，检查是否是在原位置直接修改
+                    try {
+                        if (comment.line >= 0 && comment.line < document.lineCount) {
+                            const currentLineContent = document.lineAt(comment.line).text.trim();
+                            
+                            // 如果原位置有新内容（不是空行），且与存储的内容有明显差异
+                            // 可能是用户直接修改了注释所在的行，应该更新代码快照
+                            if (currentLineContent.length > 0 && 
+                                currentLineContent !== (comment.lineContent || '').trim()) {
+                                
+                                // 使用相似度检查，如果修改不是太大，认为是同一行的修改
+                                const similarity = this.calculateSimilarity(currentLineContent, comment.lineContent || '');
+                                if (similarity > 0.4) { // 相似度超过40%认为是同一行的修改
+                                    comment.lineContent = currentLineContent;
+                                    fileUpdates++;
+                                    totalUpdates++;
+                                    console.log(`🔄 检测到原位置代码修改，更新注释 ${comment.id} 的代码快照`);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ 无法检查原位置修改 ${comment.id}:`, error);
+                    }
                 }
-                // 注释没有找到匹配位置时，静默处理，不输出日志
-        }
+            }
 
             if (fileUpdates > 0) {
                 console.log(`✅ 文件 ${path.basename(filePath)} 更新了 ${fileUpdates} 个注释`);
@@ -387,6 +462,48 @@ export class CommentManager {
             await this.saveComments();
             console.log(`✅ 智能更新完成，共更新 ${totalUpdates} 个注释`);
         }
+    }
+
+    /**
+     * 计算两个字符串的相似度
+     */
+    private calculateSimilarity(str1: string, str2: string): number {
+        if (!str1 || !str2) return 0;
+        
+        // 简单的编辑距离算法
+        const len1 = str1.length;
+        const len2 = str2.length;
+        
+        if (len1 === 0) return len2 === 0 ? 1 : 0;
+        if (len2 === 0) return 0;
+        
+        const matrix: number[][] = [];
+        
+        for (let i = 0; i <= len1; i++) {
+            matrix[i] = [i];
+        }
+        
+        for (let j = 0; j <= len2; j++) {
+            matrix[0][j] = j;
+        }
+        
+        for (let i = 1; i <= len1; i++) {
+            for (let j = 1; j <= len2; j++) {
+                if (str1.charAt(i - 1) === str2.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1, // 替换
+                        matrix[i][j - 1] + 1,     // 插入
+                        matrix[i - 1][j] + 1      // 删除
+                    );
+                }
+            }
+        }
+        
+        const distance = matrix[len1][len2];
+        const maxLen = Math.max(len1, len2);
+        return (maxLen - distance) / maxLen;
     }
 
     private generateId(): string {
