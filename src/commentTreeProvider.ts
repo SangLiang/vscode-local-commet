@@ -86,6 +86,11 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
                 arguments: [filePath, comment.line]
             };
 
+            // 创建Markdown格式的tooltip
+            const markdownTooltip = new vscode.MarkdownString();
+            markdownTooltip.appendMarkdown(comment.content);
+            commentNode.tooltip = markdownTooltip;
+
             commentNodes.push(commentNode);
         }
 

@@ -220,26 +220,40 @@ export class CommentManager {
     }
 
     private findNewLinePosition(document: vscode.TextDocument, comment: LocalComment): number {
-        // 尝试通过行内容匹配找到新位置
-        const searchRange = 10; // 在原位置前后10行内搜索
-        const startSearch = Math.max(0, comment.originalLine - searchRange);
-        const endSearch = Math.min(document.lineCount - 1, comment.originalLine + searchRange);
+        // 智能重新定位算法：通过内容匹配找到注释的新位置
+        // 当文档发生变化时，注释可能需要移动到新的行号
+        // 这个算法通过匹配原始行内容来找到注释应该绑定的新位置
+        
+        const searchRange = 10; // 在原位置前后10行内搜索，这个范围足够捕获大部分代码移动情况
+        
+        // 计算搜索范围的起始和结束位置
+        // 使用 originalLine 而不是 line，因为 originalLine 是注释创建时的真实位置
+        const startSearch = Math.max(0, comment.originalLine - searchRange); // 确保不会搜索到负数行号
+        const endSearch = Math.min(document.lineCount - 1, comment.originalLine + searchRange); // 确保不会超出文档范围
 
+        // 在搜索范围内逐行检查，寻找与原始内容匹配的行
         for (let i = startSearch; i <= endSearch; i++) {
             try {
+                // 获取当前行的文本内容并去除首尾空白字符
+                // 使用 trim() 是为了忽略缩进变化，只关注实际代码内容
                 const lineText = document.lineAt(i).text.trim();
+                
+                // 与注释创建时保存的原始行内容进行精确匹配
+                // comment.lineContent 是注释创建时该行的内容快照
                 if (lineText === comment.lineContent) {
-                    return i;
+                    return i; // 找到匹配的行，返回新的行号
                 }
             } catch (error) {
-                // 行号可能超出范围，继续搜索
-                continue;
+                // 虽然已经做了边界检查，但仍然可能出现行号超出范围的情况
+                // 例如在处理文档变化的过程中文档又发生了变化
+                continue; // 出现异常时跳过当前行，继续搜索
             }
         }
 
-        // 如果找不到匹配的行，返回调整后的原始位置（如果在有效范围内）
+        // 如果在搜索范围内找不到匹配的行内容，返回调整后的原始位置
+        // 这是一个回退策略：尽量保持注释在一个合理的位置
         const adjustedLine = Math.min(comment.line, document.lineCount - 1);
-        return adjustedLine >= 0 ? adjustedLine : -1;
+        return adjustedLine >= 0 ? adjustedLine : -1; // 返回-1表示无法找到合适的位置
     }
 
     private generateId(): string {
@@ -252,5 +266,57 @@ export class CommentManager {
 
     public getStorageFilePath(): string {
         return this.storageFile;
+    }
+
+    /**
+     * 将选中的文字转换为本地注释
+     * @param uri 文件URI
+     * @param selection 选中的文字范围
+     * @param selectedText 选中的文字内容
+     */
+    public async convertSelectionToComment(uri: vscode.Uri, selection: vscode.Selection, selectedText: string): Promise<void> {
+        const filePath = uri.fsPath;
+        
+        if (!this.comments[filePath]) {
+            this.comments[filePath] = [];
+        }
+
+        // 获取选中文字所在的行号（使用起始行）
+        const line = selection.start.line;
+        
+        // 获取当前行的内容用于智能定位
+        const document = await vscode.workspace.openTextDocument(uri);
+        const lineContent = document.lineAt(line).text;
+
+        // 创建本地注释
+        const comment: LocalComment = {
+            id: this.generateId(),
+            line: line,
+            content: selectedText.trim(), // 使用选中的文字作为注释内容
+            timestamp: Date.now(),
+            originalLine: line,
+            lineContent: lineContent.trim()
+        };
+
+        // 检查是否已存在该行的注释，如果存在则替换
+        const existingIndex = this.comments[filePath].findIndex(c => c.line === line);
+        if (existingIndex >= 0) {
+            this.comments[filePath][existingIndex] = comment;
+        } else {
+            this.comments[filePath].push(comment);
+        }
+
+        // 保存注释
+        await this.saveComments();
+
+        // 删除选中的文字
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.uri.fsPath === filePath) {
+            await editor.edit(editBuilder => {
+                editBuilder.delete(selection);
+            });
+        }
+
+        vscode.window.showInformationMessage(`已将选中文字转换为第 ${line + 1} 行的本地注释`);
     }
 } 

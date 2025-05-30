@@ -21,11 +21,8 @@ export class CommentProvider implements vscode.Disposable {
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         });
 
-        // 创建装饰类型用于高亮标签
-        this.tagDecorationType = vscode.window.createTextEditorDecorationType({
-            // 移除所有可能导致额外视觉效果的样式
-            // 现在我们通过renderOptions.after来控制样式
-        });
+        // 标签装饰器现在不再使用，但保留以避免错误
+        this.tagDecorationType = vscode.window.createTextEditorDecorationType({});
 
         // 监听编辑器变化
         this.disposables.push(
@@ -87,78 +84,21 @@ export class CommentProvider implements vscode.Disposable {
         const tags: vscode.DecorationOptions[] = [];
         const lineLength = line.text.length;
         
-        // 解析内容为段落
-        const segments = this.parseCommentIntoSegments(comment.content);
-        
-        let currentPos = lineLength; // 从行尾开始
-        let isFirstSegment = true;
-        
-        for (const segment of segments) {
-            if (isFirstSegment) {
-                // 第一个段落包含图标
-                const iconAndContent = ` 💬 ${segment.text}`;
-                
-                if (segment.isTag) {
-                    // 第一个就是标签
-                    const decoration: vscode.DecorationOptions = {
-                        range: new vscode.Range(comment.line, currentPos, comment.line, currentPos),
-                        renderOptions: {
-                            after: {
-                                contentText: iconAndContent,
-                                color: '#6BB6FF',
-                                backgroundColor: 'rgba(107, 182, 255, 0.08)',
-                                fontStyle: 'italic'
-                            }
-                        },
-                        hoverMessage: this.createHoverMessage(comment, editor.document.uri)
-                    };
-                    tags.push(decoration);
-                } else {
-                    // 第一个是普通文本
-                    const decoration: vscode.DecorationOptions = {
-                        range: new vscode.Range(comment.line, currentPos, comment.line, currentPos),
-                        renderOptions: {
-                            after: {
-                                contentText: iconAndContent,
-                                color: '#888888',
-                                fontStyle: 'italic'
-                            }
-                        },
-                        hoverMessage: this.createHoverMessage(comment, editor.document.uri)
-                    };
-                    normal.push(decoration);
-                }
-                isFirstSegment = false;
-            } else {
-                // 后续段落不包含图标
-                if (segment.isTag) {
-                    const decoration: vscode.DecorationOptions = {
-                        range: new vscode.Range(comment.line, currentPos, comment.line, currentPos),
-                        renderOptions: {
-                            after: {
-                                contentText: segment.text,
-                                color: '#6BB6FF',
-                                backgroundColor: 'rgba(107, 182, 255, 0.08)',
-                                fontStyle: 'italic'
-                            }
-                        }
-                    };
-                    tags.push(decoration);
-                } else {
-                    const decoration: vscode.DecorationOptions = {
-                        range: new vscode.Range(comment.line, currentPos, comment.line, currentPos),
-                        renderOptions: {
-                            after: {
-                                contentText: segment.text,
-                                color: '#888888',
-                                fontStyle: 'italic'
-                            }
-                        }
-                    };
-                    normal.push(decoration);
+        // 🎯 精确模式：所有注释都使用普通样式，不进行特殊高亮
+        const decoration: vscode.DecorationOptions = {
+            range: new vscode.Range(comment.line, lineLength, comment.line, lineLength),
+            renderOptions: {
+                after: {
+                    contentText: ` 💬 ${comment.content}`,
+                    color: '#888888',
+                    fontStyle: 'italic',
+                    margin: '0 0 0 1em'
                 }
             }
-        }
+        };
+        
+        // 所有注释都放到normal数组中，保持一致的显示效果
+        normal.push(decoration);
         
         return { normal, tags };
     }
@@ -208,50 +148,6 @@ export class CommentProvider implements vscode.Disposable {
         return segments;
     }
 
-    private createHoverMessage(comment: LocalComment, uri: vscode.Uri): vscode.MarkdownString {
-        const markdown = new vscode.MarkdownString();
-        markdown.isTrusted = true;
-        markdown.supportHtml = true;
-        
-        markdown.appendMarkdown(`**本地注释**\n\n`);
-        markdown.appendMarkdown(`${comment.content}\n\n`);
-        
-        // 检测标签并添加相关信息
-        const tags = this.extractTagsFromContent(comment.content);
-        
-        // 准备命令参数，包含注释的完整信息
-        const editArgs = JSON.stringify({
-            uri: uri.toString(),
-            commentId: comment.id,
-            line: comment.line
-        });
-        
-        const deleteArgs = JSON.stringify({
-            uri: uri.toString(),
-            commentId: comment.id,
-            line: comment.line
-        });
-        
-        // 使用包含参数的命令链接
-        markdown.appendMarkdown(`[✏️ 编辑注释](command:localComment.editCommentFromHover?${encodeURIComponent(editArgs)}) | [🗑️ 删除注释](command:localComment.removeCommentFromHover?${encodeURIComponent(deleteArgs)})`);
-        markdown.appendMarkdown(`\n\n---\n\n`);
-        markdown.appendMarkdown(`*添加时间: ${new Date(comment.timestamp).toLocaleString()}*\n\n`);
-
-        if (tags.length > 0) {
-            markdown.appendMarkdown(`**标签信息**\n\n`);
-            for (const tag of tags) {
-                if (tag.type === 'declaration') {
-                    markdown.appendMarkdown(`🏷️ **声明**: \`${tag.text}\`\n\n`);
-                } else {
-                    const tagName = tag.text.substring(1); // 移除@符号
-                    markdown.appendMarkdown(`🔗 **引用**: \`${tag.text}\` - [跳转到声明](command:localComment.goToTagDeclaration?${encodeURIComponent(JSON.stringify({tagName}))})\n\n`);
-                }
-            }
-        }
-
-        return markdown;
-    }
-
     private extractTagsFromContent(content: string): Array<{text: string, type: 'declaration' | 'reference'}> {
         const tags: Array<{text: string, type: 'declaration' | 'reference'}> = [];
         
@@ -282,4 +178,76 @@ export class CommentProvider implements vscode.Disposable {
         this.tagDecorationType.dispose();
         this.disposables.forEach(d => d.dispose());
     }
-} 
+
+    private processMarkdownContent(content: string): string {
+        return content
+            .replace(/\\n/g, '\n')      // \n -> 换行
+            .replace(/\\t/g, '\t')      // \t -> 制表符  
+            .replace(/\\r/g, '\r')      // \r -> 回车
+            .replace(/\\\\/g, '\\')     // \\ -> \
+            .replace(/\\"/g, '"')       // \" -> "
+            .replace(/\\'/g, "'");      // \' -> '
+    }
+
+    public provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.ProviderResult<vscode.Hover> {
+        if (!this.isVisible) {
+            return;
+        }
+
+        const line = position.line;
+        const comments = this.commentManager.getComments(document.uri);
+        const comment = comments.find(c => c.line === line);
+
+        if (comment) {
+            const markdownContent = new vscode.MarkdownString();
+            markdownContent.isTrusted = true;
+            markdownContent.supportHtml = true;
+            
+            // 🔥 处理用户输入的转义字符
+            const processedContent = this.processMarkdownContent(comment.content);
+            
+            // 构建Markdown内容
+            markdownContent.appendMarkdown(`**💬 本地注释**\n\n`);
+            markdownContent.appendMarkdown(processedContent);
+            markdownContent.appendMarkdown(`\n\n`);
+            
+            // 恢复完整的标签处理逻辑
+            const tags = this.extractTagsFromContent(comment.content);
+            if (tags.length > 0) {
+                markdownContent.appendMarkdown(`**🏷️ 标签信息**\n\n`);
+                for (const tag of tags) {
+                    if (tag.type === 'declaration') {
+                        markdownContent.appendMarkdown(`🏷️ **声明**: \`${tag.text}\`\n\n`);
+                    } else {
+                        const tagName = tag.text.substring(1);
+                        markdownContent.appendMarkdown(`🔗 **引用**: \`${tag.text}\` - [跳转到声明](command:localComment.goToTagDeclaration?${encodeURIComponent(JSON.stringify({tagName}))})\n\n`);
+                    }
+                }
+            }
+            
+            markdownContent.appendMarkdown(`---\n`);
+            markdownContent.appendMarkdown(`📅 *${new Date(comment.timestamp).toLocaleString()}*\n\n`);
+            
+            // 添加操作按钮
+            const editArgs = JSON.stringify({
+                uri: document.uri.toString(),
+                commentId: comment.id,
+                line: comment.line
+            });
+            
+            const removeArgs = JSON.stringify({
+                uri: document.uri.toString(),
+                commentId: comment.id,
+                line: comment.line
+            });
+
+            markdownContent.appendMarkdown(`[✏️ 编辑](command:localComment.quickEditCommentFromHover?${encodeURIComponent(editArgs)} "快速编辑注释") | `);
+            markdownContent.appendMarkdown(`[📝 Markdown编辑](command:localComment.editCommentFromHover?${encodeURIComponent(editArgs)} "多行编辑注释") | `);
+            markdownContent.appendMarkdown(`[🗑️ 删除](command:localComment.removeCommentFromHover?${encodeURIComponent(removeArgs)} "删除注释")`);
+            
+            return new vscode.Hover(markdownContent);
+        }
+
+        return undefined;
+    }
+}

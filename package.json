@@ -2,7 +2,7 @@
   "name": "vscode-local-comment",
   "displayName": "本地注释 (Local Comment)",
   "description": "在代码中添加本地注释，支持标签功能，不修改原文件，也不会将本地注释提交到版本管理工具",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "sangliang",
   "author": {
     "name": "SangLiang",
@@ -50,6 +50,11 @@
       {
         "command": "localComment.addComment",
         "title": "Add Local Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.convertSelectionToComment",
+        "title": "转换为本地注释",
         "category": "Local Comment"
       },
       {
@@ -143,6 +148,12 @@
         "key": "ctrl+shift+e",
         "mac": "cmd+shift+e",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "localComment.convertSelectionToComment",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "editorTextFocus && editorHasSelection"
       }
     ],
     "menus": {
@@ -151,6 +162,11 @@
           "command": "localComment.addComment",
           "group": "localComment",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "localComment.convertSelectionToComment",
+          "group": "localComment",
+          "when": "editorTextFocus && editorHasSelection"
         },
         {
           "command": "localComment.removeComment",
@@ -181,6 +197,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "build":"npx @vscode/vsce package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
