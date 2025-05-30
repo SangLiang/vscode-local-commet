@@ -1,14 +1,13 @@
-# VSCode 本地注释插件
+# VSCode 本地注释
 
 学习源码，开发陌生项目的辅助工具。
 
 让你可以在代码中添加本地注释,markdown笔记，添加文件跳转tag，修改不会影响原文件或也不会提交到版本控制系统。
 
 ### tag跳转
-![image](./images/jump.gif)
-
+![image](https://raw.githubusercontent.com/SangLiang/vscode-local-commet/refs/heads/master/images/jump.gif)
 ### markdown本地注释
-![image](./images/markdown.gif)
+![image](https://raw.githubusercontent.com/SangLiang/vscode-local-commet/refs/heads/master/images/markdown.gif)
 
 ## ✨ 主要功能
 
@@ -27,15 +26,23 @@
 - **点击跳转**: 点击标签引用直接跳转到声明位置
 - **跨文件支持**: 标签可以在不同文件间引用
 
-### 🎨 可视化界面
-- **注释显示**: 注释以装饰形式显示在代码行末尾
-- **悬停交互**: 鼠标悬停显示编辑和删除选项
-- **侧边栏面板**: 查看和管理所有本地注释
-
 ### 💾 数据管理
 - **本地存储**: 注释数据存储在本地，不会同步到版本控制
 - **跨会话持久化**: 重启VSCode后注释依然存在
 - **智能备份**: 自动保存，支持手动备份和恢复
+
+## 🔑最佳实践
+
+本地注释最好应用在函数声明的同一行。如：
+
+```javascript
+function test { // local comment 最好在此行注释
+  test code 
+}
+```
+
+这样做可以减少因为在切换分支，或者大范围修改代码后，本地注释匹配不到代码位置的问题，尽可能不要在空行应用本地注释。
+
 
 ## 🚀 快速开始
 
@@ -67,8 +74,7 @@
 ```javascript
 let userConfig = {};  // 本地注释: 这里是$userConfig的声明地方
 
-function loadConfig() {
-    // 本地注释: 这里加载@userConfig的配置
+function loadConfig() {// 本地注释: 这里加载@userConfig的配置
     userConfig = JSON.parse(localStorage.getItem('config'));
 }
 ```
@@ -166,6 +172,13 @@ npm run compile
 ## 📝 更新日志
 
 ### 变更日志
+
+## [1.0.2] - 2025-05-30
+
+### 🎉 修复bug
+- 🔨切换分支导致的注释位置错误的问题
+- 💻Markdown编辑时，智能补全位置错误的问题
+
 
 ## [1.0.1] - 2025-05-30
 

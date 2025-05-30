@@ -19,6 +19,8 @@ export class CommentManager {
     private comments: FileComments = {};
     private storageFile: string;
     private context: vscode.ExtensionContext;
+    private updateTimer: NodeJS.Timeout | null = null; // 防抖定时器
+    private pendingUpdates: Set<string> = new Set(); // 待更新的文件路径
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -175,7 +177,126 @@ export class CommentManager {
 
     public getComments(uri: vscode.Uri): LocalComment[] {
         const filePath = uri.fsPath;
-        return this.comments[filePath] || [];
+        const fileComments = this.comments[filePath] || [];
+        
+        if (fileComments.length === 0) {
+            return [];
+        }
+
+        // 获取当前文档内容进行智能匹配
+        const document = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === filePath);
+        if (!document) {
+            // 如果文档未打开，返回空数组（暂时隐藏注释）
+            return [];
+        }
+
+        const matchedComments: LocalComment[] = [];
+        let needsSave = false;
+
+        for (const comment of fileComments) {
+            const matchedLine = this.findMatchingLine(document, comment);
+            if (matchedLine !== -1) {
+                // 创建一个新的注释对象，更新行号但保持原有信息
+                const matchedComment: LocalComment = {
+                    ...comment,
+                    line: matchedLine
+                };
+                matchedComments.push(matchedComment);
+                
+                // 如果位置发生了变化，更新存储的注释
+                if (comment.line !== matchedLine) {
+                    comment.line = matchedLine;
+                    needsSave = true;
+                }
+            }
+            // 如果找不到匹配的行，暂时不显示该注释
+        }
+
+        // 如果有位置更新，保存到文件
+        if (needsSave) {
+            this.saveCommentsAsync();
+        }
+
+        return matchedComments;
+    }
+
+    /**
+     * 智能匹配注释对应的行号
+     * 优先通过代码内容匹配，行号作为辅助
+     */
+    private findMatchingLine(document: vscode.TextDocument, comment: LocalComment): number {
+        const lineContent = comment.lineContent?.trim();
+        
+        // 如果没有保存的行内容（旧版本数据），严格隐藏注释
+        // 不再提供兼容性支持，避免注释显示在错误的位置
+        if (!lineContent || lineContent.length === 0) {
+            console.warn(`⚠️ 注释 ${comment.id} 缺少代码内容快照，将被隐藏`);
+            return -1; // 严格隐藏，不提供兼容性
+        }
+
+        // 1. 优先在原始行号位置查找匹配
+        if (comment.line >= 0 && comment.line < document.lineCount) {
+            const currentLineContent = document.lineAt(comment.line).text.trim();
+            if (currentLineContent === lineContent) {
+                return comment.line;
+            }
+        }
+
+        // 2. 在原始行号附近的小范围内查找（±5行）
+        const searchRange = 5;
+        const startLine = Math.max(0, comment.line - searchRange);
+        const endLine = Math.min(document.lineCount - 1, comment.line + searchRange);
+
+        for (let i = startLine; i <= endLine; i++) {
+            if (i !== comment.line) { // 跳过已经检查过的原始行号
+                const currentLineContent = document.lineAt(i).text.trim();
+                if (currentLineContent === lineContent) {
+                    return i;
+                }
+            }
+        }
+
+        // 3. 在整个文档中查找精确匹配
+        for (let i = 0; i < document.lineCount; i++) {
+            if (i >= startLine && i <= endLine) {
+                continue; // 跳过已经搜索过的范围
+            }
+            const currentLineContent = document.lineAt(i).text.trim();
+            if (currentLineContent === lineContent) {
+                return i;
+            }
+        }
+
+        // 4. 使用模糊匹配（去除空格和标点符号的影响）
+        const normalizedTarget = this.normalizeLineContent(lineContent);
+        if (normalizedTarget && normalizedTarget.length > 0) {
+            for (let i = 0; i < document.lineCount; i++) {
+                const currentLineContent = document.lineAt(i).text.trim();
+                const normalizedCurrent = this.normalizeLineContent(currentLineContent);
+                if (normalizedCurrent && normalizedCurrent === normalizedTarget && normalizedCurrent.length > 0) {
+                    return i;
+                }
+            }
+        }
+
+        // 5. 找不到匹配的内容，严格隐藏注释
+        // 只在调试时显示详细信息
+        return -1;
+    }
+
+    /**
+     * 标准化行内容，用于模糊匹配
+     * 移除空格、制表符和一些常见的标点符号
+     */
+    private normalizeLineContent(content: string): string {
+        const normalized = content
+            .replace(/\s+/g, '') // 移除所有空白字符
+            .replace(/[;,{}()]/g, '') // 移除常见标点符号
+            .toLowerCase(); // 转为小写
+        
+        // 避免过于短的内容造成误匹配
+        // 标准化后的内容至少要有3个字符才考虑模糊匹配
+        return normalized.length >= 3 ? normalized : '';
     }
 
     public async handleDocumentChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
@@ -186,74 +307,86 @@ export class CommentManager {
             return;
         }
 
-        let needsSave = false;
+        // 将这个文件标记为需要智能更新
+        this.pendingUpdates.add(filePath);
 
-        for (const change of event.contentChanges) {
-            const startLine = change.range.start.line;
-            const endLine = change.range.end.line;
-            const linesAdded = change.text.split('\n').length - 1;
-            const linesRemoved = endLine - startLine;
-            const netLineChange = linesAdded - linesRemoved;
-
-            // 更新受影响的注释位置
-            for (const comment of fileComments) {
-                if (comment.line >= startLine) {
-                    if (comment.line <= endLine) {
-                        // 注释在被修改的范围内，尝试智能重新定位
-                        const newLine = this.findNewLinePosition(event.document, comment);
-                        if (newLine !== -1) {
-                            comment.line = newLine;
-                            needsSave = true;
-                        }
-                    } else {
-                        // 注释在被修改范围之后，调整行号
-                        comment.line += netLineChange;
-                        needsSave = true;
-                    }
-                }
-            }
+        // 使用防抖机制：清除之前的定时器，设置新的定时器
+        if (this.updateTimer) {
+            clearTimeout(this.updateTimer);
         }
 
-        if (needsSave) {
-            await this.saveComments();
-        }
+        // 延迟1秒后执行智能更新（用户停止编辑1秒后）
+        this.updateTimer = setTimeout(async () => {
+            console.log('🧠 开始智能更新注释代码快照...');
+            await this.performSmartUpdates();
+            this.updateTimer = null;
+        }, 1000);
+
+        // 立即触发注释重新渲染
+        setTimeout(() => {
+            vscode.commands.executeCommand('localComment.refreshComments');
+        }, 50);
     }
 
-    private findNewLinePosition(document: vscode.TextDocument, comment: LocalComment): number {
-        // 智能重新定位算法：通过内容匹配找到注释的新位置
-        // 当文档发生变化时，注释可能需要移动到新的行号
-        // 这个算法通过匹配原始行内容来找到注释应该绑定的新位置
+    /**
+     * 执行智能更新：只有当注释确实匹配到正确位置时，才更新代码快照
+     */
+    private async performSmartUpdates(): Promise<void> {
+        let totalUpdates = 0;
         
-        const searchRange = 10; // 在原位置前后10行内搜索，这个范围足够捕获大部分代码移动情况
-        
-        // 计算搜索范围的起始和结束位置
-        // 使用 originalLine 而不是 line，因为 originalLine 是注释创建时的真实位置
-        const startSearch = Math.max(0, comment.originalLine - searchRange); // 确保不会搜索到负数行号
-        const endSearch = Math.min(document.lineCount - 1, comment.originalLine + searchRange); // 确保不会超出文档范围
+        for (const filePath of this.pendingUpdates) {
+            const fileComments = this.comments[filePath];
+            if (!fileComments) continue;
 
-        // 在搜索范围内逐行检查，寻找与原始内容匹配的行
-        for (let i = startSearch; i <= endSearch; i++) {
-            try {
-                // 获取当前行的文本内容并去除首尾空白字符
-                // 使用 trim() 是为了忽略缩进变化，只关注实际代码内容
-                const lineText = document.lineAt(i).text.trim();
+            // 获取当前文档
+            const document = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === filePath);
+            if (!document) continue;
+
+            let fileUpdates = 0;
+            
+            for (const comment of fileComments) {
+                // 首先进行智能匹配，看注释是否找到了正确的位置
+                const matchedLine = this.findMatchingLine(document, comment);
                 
-                // 与注释创建时保存的原始行内容进行精确匹配
-                // comment.lineContent 是注释创建时该行的内容快照
-                if (lineText === comment.lineContent) {
-                    return i; // 找到匹配的行，返回新的行号
+                if (matchedLine !== -1) {
+                    // 注释找到了匹配位置，检查是否需要更新代码快照
+                    try {
+                        const currentLineContent = document.lineAt(matchedLine).text.trim();
+                        const storedLineContent = (comment.lineContent || '').trim();
+                        
+                        // 情况1：注释匹配到了原位置，但代码内容发生了变化（用户编辑）
+                        // 情况2：注释匹配到了新位置，需要更新行号和代码快照
+                        if (currentLineContent !== storedLineContent && currentLineContent.length > 0) {
+                            comment.lineContent = currentLineContent;
+                            comment.line = matchedLine; // 同时更新行号
+                            fileUpdates++;
+                            totalUpdates++;
+                        } else if (comment.line !== matchedLine) {
+                            // 只是位置变化，代码内容没变
+                            comment.line = matchedLine;
+                            fileUpdates++;
+                            totalUpdates++;
+                        }
+                    } catch (error) {
+                        console.warn(`⚠️ 无法智能更新注释 ${comment.id}:`, error);
+                    }
                 }
-            } catch (error) {
-                // 虽然已经做了边界检查，但仍然可能出现行号超出范围的情况
-                // 例如在处理文档变化的过程中文档又发生了变化
-                continue; // 出现异常时跳过当前行，继续搜索
+                // 注释没有找到匹配位置时，静默处理，不输出日志
+        }
+
+            if (fileUpdates > 0) {
+                console.log(`✅ 文件 ${path.basename(filePath)} 更新了 ${fileUpdates} 个注释`);
             }
         }
 
-        // 如果在搜索范围内找不到匹配的行内容，返回调整后的原始位置
-        // 这是一个回退策略：尽量保持注释在一个合理的位置
-        const adjustedLine = Math.min(comment.line, document.lineCount - 1);
-        return adjustedLine >= 0 ? adjustedLine : -1; // 返回-1表示无法找到合适的位置
+        // 清空待更新列表
+        this.pendingUpdates.clear();
+
+        // 如果有更新，保存到文件
+        if (totalUpdates > 0) {
+            await this.saveComments();
+            console.log(`✅ 智能更新完成，共更新 ${totalUpdates} 个注释`);
+        }
     }
 
     private generateId(): string {
@@ -318,5 +451,18 @@ export class CommentManager {
         }
 
         vscode.window.showInformationMessage(`已将选中文字转换为第 ${line + 1} 行的本地注释`);
+    }
+
+    /**
+     * 异步保存注释，避免阻塞UI
+     */
+    private async saveCommentsAsync(): Promise<void> {
+        try {
+            setTimeout(async () => {
+                await this.saveComments();
+            }, 100);
+        } catch (error) {
+            console.error('异步保存注释失败:', error);
+        }
     }
 } 

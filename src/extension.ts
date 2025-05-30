@@ -12,21 +12,15 @@ let commentTreeProvider: CommentTreeProvider;
 let tagManager: TagManager;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('🚀🚀🚀 本地注释插件开始激活 🚀🚀🚀');
-    console.log('Context extensionPath:', context.extensionPath);
-    console.log('VSCode version:', vscode.version);
-    
     console.log('本地注释插件已激活');
 
     // 初始化管理器
-    console.log('初始化管理器...');
     commentManager = new CommentManager(context);
     commentProvider = new CommentProvider(commentManager);
     commentTreeProvider = new CommentTreeProvider(commentManager);
     tagManager = new TagManager();
 
     // 初始化标签数据
-    console.log('初始化标签数据...');
     tagManager.updateTags(commentManager.getAllComments());
 
     // 注册自动补全和定义提供器
@@ -51,10 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // 注册命令
-    console.log('🔧 开始注册命令...');
     const addCommentCommand = vscode.commands.registerCommand('localComment.addComment', async () => {
-        console.log('🎯 addComment 命令被调用');
-        
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('请先打开一个文件');
@@ -64,8 +55,6 @@ export function activate(context: vscode.ExtensionContext) {
         const line = editor.selection.active.line;
         
         try {
-            console.log('✅ 开始添加注释到行:', line);
-            
             // 使用单行快速输入界面
             const content = await showQuickInputWithTagCompletion(
                 '添加本地注释',
@@ -79,22 +68,15 @@ export function activate(context: vscode.ExtensionContext) {
                 tagManager.updateTags(commentManager.getAllComments());
                 commentProvider.refresh();
                 commentTreeProvider.refresh();
-                vscode.window.showInformationMessage('注释已成功添加');
-                console.log('✅ 注释添加成功');
-            } else {
-                console.log('❌ 用户取消了注释添加');
             }
         } catch (error) {
-            console.error('❌ 添加注释时出错:', error);
+            console.error('添加注释时出错:', error);
             vscode.window.showErrorMessage(`添加注释失败: ${error}`);
         }
     });
-    console.log('✅ addComment 命令注册完成');
 
     // 注册转换选中文字为本地注释的命令
     const convertSelectionToCommentCommand = vscode.commands.registerCommand('localComment.convertSelectionToComment', async () => {
-        console.log('🎯 convertSelectionToComment 命令被调用');
-        
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('请先打开一个文件');
@@ -115,22 +97,18 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         try {
-            console.log('✅ 开始转换选中文字为注释:', selectedText);
             await commentManager.convertSelectionToComment(editor.document.uri, selection, selectedText);
             tagManager.updateTags(commentManager.getAllComments());
             commentProvider.refresh();
             commentTreeProvider.refresh();
         } catch (error) {
-            console.error('❌ 转换选中文字为注释失败:', error);
+            console.error('转换选中文字为注释失败:', error);
             vscode.window.showErrorMessage('转换失败，请重试');
         }
     });
-    console.log('✅ convertSelectionToComment 命令注册完成');
 
     const editCommentFromHoverCommand = vscode.commands.registerCommand('localComment.editCommentFromHover', async (args) => {
         try {
-            console.log('从hover编辑注释命令被调用，参数:', args);
-            
             let parsedArgs;
             
             // 检查参数是否已经是对象
@@ -153,7 +131,6 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (!uri || !commentId || line === undefined) {
                 vscode.window.showErrorMessage('参数不完整');
-                console.log('缺少参数:', { uri, commentId, line });
                 return;
             }
 
@@ -170,7 +147,8 @@ export function activate(context: vscode.ExtensionContext) {
             // 获取上下文信息
             const fileName = documentUri.fsPath.split(/[/\\]/).pop() || '';
             const document = await vscode.workspace.openTextDocument(documentUri);
-            const lineContent = document.lineAt(comment.line).text;
+            // 使用注释保存的原始代码内容，而不是当前行的代码
+            const lineContent = comment.lineContent || document.lineAt(comment.line).text;
 
             const newContent = await showWebViewInput(
                 '修改注释内容',
@@ -188,7 +166,6 @@ export function activate(context: vscode.ExtensionContext) {
                 tagManager.updateTags(commentManager.getAllComments());
                 commentProvider.refresh();
                 commentTreeProvider.refresh();
-                vscode.window.showInformationMessage('注释已成功更新');
             }
         } catch (error) {
             console.error('从hover编辑注释时发生错误:', error);
@@ -199,11 +176,8 @@ export function activate(context: vscode.ExtensionContext) {
     // 添加快速编辑命令（单行输入）
     const quickEditCommentFromHoverCommand = vscode.commands.registerCommand('localComment.quickEditCommentFromHover', async (args) => {
         try {
-            console.log('从hover快速编辑注释命令被调用，参数:', args);
-            
             let parsedArgs;
             
-            // 检查参数是否已经是对象
             if (typeof args === 'object') {
                 parsedArgs = args;
             } else if (typeof args === 'string') {
@@ -223,13 +197,10 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (!uri || !commentId || line === undefined) {
                 vscode.window.showErrorMessage('参数不完整');
-                console.log('缺少参数:', { uri, commentId, line });
                 return;
             }
 
             const documentUri = vscode.Uri.parse(uri);
-            
-            // 通过commentId直接查找注释，不依赖光标位置
             const comment = commentManager.getCommentById(documentUri, commentId);
             
             if (!comment) {
@@ -248,7 +219,6 @@ export function activate(context: vscode.ExtensionContext) {
                 tagManager.updateTags(commentManager.getAllComments());
                 commentProvider.refresh();
                 commentTreeProvider.refresh();
-                vscode.window.showInformationMessage('注释已成功更新');
             }
         } catch (error) {
             console.error('从hover快速编辑注释时发生错误:', error);
@@ -296,8 +266,6 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const editCommentCommand = vscode.commands.registerCommand('localComment.editComment', async (uri: vscode.Uri, line: number) => {
-        console.log('🎯 editComment 命令被调用');
-        
         try {
             const comments = commentManager.getComments(uri);
             const comment = comments.find(c => c.line === line);
@@ -310,7 +278,8 @@ export function activate(context: vscode.ExtensionContext) {
             // 获取上下文信息
             const fileName = uri.fsPath.split(/[/\\]/).pop() || '';
             const document = await vscode.workspace.openTextDocument(uri);
-            const lineContent = document.lineAt(comment.line).text;
+            // 使用注释保存的原始代码内容，而不是当前行的代码
+            const lineContent = comment.lineContent || document.lineAt(comment.line).text;
             
             // 使用新的WebView输入界面
             const newContent = await showWebViewInput(
@@ -330,13 +299,9 @@ export function activate(context: vscode.ExtensionContext) {
                 tagManager.updateTags(commentManager.getAllComments());
                 commentProvider.refresh();
                 commentTreeProvider.refresh();
-                vscode.window.showInformationMessage('注释已成功更新');
-                console.log('✅ 注释编辑成功');
-            } else {
-                console.log('❌ 用户取消了注释编辑');
             }
         } catch (error) {
-            console.error('❌ 编辑注释时出错:', error);
+            console.error('编辑注释时出错:', error);
             vscode.window.showErrorMessage(`编辑注释失败: ${error}`);
         }
     });
@@ -359,8 +324,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     const removeCommentFromHoverCommand = vscode.commands.registerCommand('localComment.removeCommentFromHover', async (args) => {
         try {
-            console.log('从hover删除注释命令被调用，参数:', args);
-            
             let parsedArgs;
             
             // 检查参数是否已经是对象
@@ -383,7 +346,6 @@ export function activate(context: vscode.ExtensionContext) {
             
             if (!uri || !commentId || line === undefined) {
                 vscode.window.showErrorMessage('参数不完整');
-                console.log('缺少参数:', { uri, commentId, line });
                 return;
             }
 
@@ -412,22 +374,61 @@ export function activate(context: vscode.ExtensionContext) {
     const goToCommentCommand = vscode.commands.registerCommand('localComment.goToComment', async (filePath: string, line: number) => {
         try {
             const uri = vscode.Uri.file(filePath);
+            
+            // 首先验证注释是否还能找到对应的代码
+            const fileComments = commentManager.getAllComments()[filePath] || [];
+            const targetComment = fileComments.find(c => c.originalLine === line || c.line === line);
+            
+            if (!targetComment) {
+                vscode.window.showWarningMessage(`找不到第 ${line + 1} 行的注释`);
+                return;
+            }
+
+            // 使用智能匹配验证注释是否还能找到对应的代码
+            const comments = commentManager.getComments(uri);
+            const matchedComment = comments.find(c => c.id === targetComment.id);
+            
+            if (!matchedComment) {
+                // 注释无法匹配到代码，提示用户
+                vscode.window.showWarningMessage(
+                    `注释"${targetComment.content}"暂时找不到对应的代码。可能是代码被修改、删除，或者在不同的Git分支中。`, 
+                    '查看注释详情'
+                ).then(selection => {
+                    if (selection === '查看注释详情') {
+                        // 显示注释详细信息
+                        const message = `注释内容: ${targetComment.content}\n` +
+                                      `原始代码: ${targetComment.lineContent || '未知'}\n` +
+                                      `创建时间: ${new Date(targetComment.timestamp).toLocaleString()}`;
+                        vscode.window.showInformationMessage(message, { modal: true });
+                    }
+                });
+                return;
+            }
+
+            // 注释能找到对应代码，执行跳转
             const document = await vscode.workspace.openTextDocument(uri);
             const editor = await vscode.window.showTextDocument(document);
             
-            // 跳转到指定行
-            const position = new vscode.Position(line, 0);
+            // 跳转到匹配后的正确位置
+            const position = new vscode.Position(matchedComment.line, 0);
             editor.selection = new vscode.Selection(position, position);
             editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+            
+            // 如果位置发生了变化，提示用户
+            if (matchedComment.line !== targetComment.line) {
+                vscode.window.showInformationMessage(
+                    `注释位置已更新：第 ${targetComment.line + 1} 行 → 第 ${matchedComment.line + 1} 行`
+                );
+            }
+            
         } catch (error) {
+            console.error('跳转到注释时发生错误:', error);
             vscode.window.showErrorMessage('无法打开文件或跳转到指定位置');
         }
     });
 
     const goToTagDeclarationCommand = vscode.commands.registerCommand('localComment.goToTagDeclaration', async (args) => {
         try {
-            console.log('跳转到标签声明命令被调用，参数:', args);
-            
             let tagName: string;
             
             // 处理参数
@@ -444,8 +445,6 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage('无效的标签名称');
                 return;
             }
-
-            console.log('查找标签声明:', tagName);
             
             // 查找标签声明
             const declaration = tagManager.getTagDeclaration(tagName);
@@ -454,8 +453,6 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage(`找不到标签 $${tagName} 的声明`);
                 return;
             }
-
-            console.log('找到标签声明:', declaration);
             
             // 跳转到声明位置
             const uri = vscode.Uri.file(declaration.filePath);
@@ -478,6 +475,10 @@ export function activate(context: vscode.ExtensionContext) {
         commentProvider.toggleVisibility();
     });
 
+    const refreshCommentsCommand = vscode.commands.registerCommand('localComment.refreshComments', () => {
+        commentProvider.refresh();
+    });
+
     const refreshTreeCommand = vscode.commands.registerCommand('localComment.refreshTree', () => {
         commentTreeProvider.refresh();
     });
@@ -498,7 +499,8 @@ export function activate(context: vscode.ExtensionContext) {
             const fileName = item.filePath.split(/[/\\]/).pop() || '';
             const uri = vscode.Uri.file(item.filePath);
             const document = await vscode.workspace.openTextDocument(uri);
-            const lineContent = document.lineAt(item.comment.line).text;
+            // 使用注释保存的原始代码内容，而不是当前行的代码
+            const lineContent = item.comment.lineContent || document.lineAt(item.comment.line).text;
             
             const newContent = await showWebViewInput(
                 '修改注释内容',
@@ -587,7 +589,6 @@ export function activate(context: vscode.ExtensionContext) {
         commentProvider
     );
 
-    console.log('📋 准备注册到context.subscriptions...');
     context.subscriptions.push(
         addCommentCommand,
         convertSelectionToCommentCommand,
@@ -600,6 +601,7 @@ export function activate(context: vscode.ExtensionContext) {
         goToCommentCommand,
         goToTagDeclarationCommand,
         toggleCommentsCommand,
+        refreshCommentsCommand,
         refreshTreeCommand,
         deleteCommentFromTreeCommand,
         editCommentFromTreeCommand,
@@ -614,7 +616,7 @@ export function activate(context: vscode.ExtensionContext) {
         hoverDisposable
     );
     
-    console.log('🎉 本地注释插件激活完成！');
+    console.log('✅ 本地注释插件激活完成');
 }
 
 export function deactivate() {
@@ -629,10 +631,7 @@ async function showQuickInputWithTagCompletion(
     placeholder: string, 
     value?: string
 ): Promise<string | undefined> {
-    console.log('🚀 showQuickInputWithTagCompletion 函数被调用', { prompt, placeholder, value });
-    
     return new Promise<string | undefined>((resolve) => {
-        console.log('📝 创建QuickPick对话框');
         const quickPick = vscode.window.createQuickPick();
         quickPick.placeholder = placeholder;
         quickPick.title = prompt;
@@ -645,17 +644,13 @@ async function showQuickInputWithTagCompletion(
         let isShowingCompletions = false;
         
         const updateCompletions = (inputValue: string) => {
-            console.log('检查输入:', inputValue);
-            
             const lastAtIndex = inputValue.lastIndexOf('@');
             
             if (lastAtIndex !== -1) {
                 const afterAt = inputValue.substring(lastAtIndex + 1);
-                console.log('@后的内容:', afterAt);
                 
                 if (/^[a-zA-Z0-9_]*$/.test(afterAt)) {
                     const availableTags = tagManager.getAvailableTagNames();
-                    console.log('🏷️ 检测到@，可用标签:', availableTags);
                     
                     if (availableTags.length > 0) {
                         const filteredTags = availableTags.filter(tag => 
@@ -676,8 +671,6 @@ async function showQuickInputWithTagCompletion(
                             if (quickPick.items.length > 0) {
                                 quickPick.activeItems = [quickPick.items[0]];
                             }
-                            
-                            console.log('🎯 已设置补全项目:', items.length, '个');
                         } else {
                             quickPick.items = [];
                             isShowingCompletions = false;
@@ -701,7 +694,6 @@ async function showQuickInputWithTagCompletion(
 
         // 监听输入变化
         quickPick.onDidChangeValue((inputValue) => {
-            console.log('📝 输入变化:', inputValue);
             updateCompletions(inputValue);
         });
 
@@ -719,7 +711,6 @@ async function showQuickInputWithTagCompletion(
                     quickPick.value = newValue;
                     quickPick.items = [];
                     isShowingCompletions = false;
-                    console.log('✅ 已补全标签: @' + (selectedItem as any).originalTag);
                     
                     // 继续编辑，不关闭对话框
                     updateCompletions(newValue);
@@ -1111,10 +1102,96 @@ function getWebviewContent(prompt: string, placeholder: string, existingContent:
                     autocompleteDropdown.appendChild(item);
                 });
                 
-                // 计算位置
-                autocompleteDropdown.style.left = '12px'; // textarea的padding
-                autocompleteDropdown.style.top = (textarea.offsetHeight + 4) + 'px';
+                // 计算光标位置
+                const position = getCaretPixelPosition(textarea, cursorPos);
+                
+                // 设置下拉框位置（相对于textarea）
+                autocompleteDropdown.style.left = position.left + 'px';
+                autocompleteDropdown.style.top = (position.top + position.height + 2) + 'px';
                 autocompleteDropdown.style.display = 'block';
+                
+                // 确保下拉框不超出容器边界
+                adjustDropdownPosition();
+            }
+            
+            /**
+             * 获取光标在textarea中的像素位置
+             */
+            function getCaretPixelPosition(textarea, caretPos) {
+                // 创建一个隐藏的div，模拟textarea的样式
+                const div = document.createElement('div');
+                const style = window.getComputedStyle(textarea);
+                
+                // 复制textarea的样式到div
+                div.style.position = 'absolute';
+                div.style.visibility = 'hidden';
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.wordWrap = 'break-word';
+                div.style.top = '0px';
+                div.style.left = '0px';
+                
+                // 复制重要的样式属性
+                [
+                    'fontFamily', 'fontSize', 'fontWeight', 'lineHeight',
+                    'paddingTop', 'paddingLeft', 'paddingRight', 'paddingBottom',
+                    'borderTopWidth', 'borderLeftWidth', 'borderRightWidth', 'borderBottomWidth',
+                    'width', 'height'
+                ].forEach(prop => {
+                    div.style[prop] = style[prop];
+                });
+                
+                document.body.appendChild(div);
+                
+                // 设置文本内容到光标位置
+                const textBeforeCaret = textarea.value.substring(0, caretPos);
+                div.textContent = textBeforeCaret;
+                
+                // 创建一个span来标记光标位置
+                const span = document.createElement('span');
+                span.textContent = '|'; // 光标占位符
+                div.appendChild(span);
+                
+                // 获取span的位置（即光标位置）
+                const spanRect = span.getBoundingClientRect();
+                const textareaRect = textarea.getBoundingClientRect();
+                
+                // 计算相对于textarea的位置
+                const left = spanRect.left - textareaRect.left;
+                const top = spanRect.top - textareaRect.top;
+                const height = spanRect.height;
+                
+                // 清理
+                document.body.removeChild(div);
+                
+                return {
+                    left: Math.max(0, left),
+                    top: Math.max(0, top),
+                    height: height
+                };
+            }
+            
+            /**
+             * 调整下拉框位置，确保不超出容器边界
+             */
+            function adjustDropdownPosition() {
+                const dropdown = autocompleteDropdown;
+                const container = textarea.parentElement;
+                const containerRect = container.getBoundingClientRect();
+                const dropdownRect = dropdown.getBoundingClientRect();
+                
+                // 如果下拉框超出右边界，向左调整
+                if (dropdownRect.right > containerRect.right) {
+                    const overflow = dropdownRect.right - containerRect.right;
+                    const currentLeft = parseInt(dropdown.style.left);
+                    dropdown.style.left = Math.max(0, currentLeft - overflow - 10) + 'px';
+                }
+                
+                // 如果下拉框超出底部边界，显示在光标上方
+                if (dropdownRect.bottom > containerRect.bottom) {
+                    const currentTop = parseInt(dropdown.style.top);
+                    const dropdownHeight = dropdownRect.height;
+                    dropdown.style.top = (currentTop - dropdownHeight - 25) + 'px'; // 25是行高的估算
+                }
             }
             
             function hideAutocomplete() {
