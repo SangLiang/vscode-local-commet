@@ -5,6 +5,8 @@ import { CommentTreeProvider } from './commentTreeProvider';
 import { TagManager } from './tagManager';
 import { TagCompletionProvider } from './tagCompletionProvider';
 import { TagDefinitionProvider } from './tagDefinitionProvider';
+import * as path from 'path';
+import * as fs from 'fs';
 
 let commentManager: CommentManager;
 let commentProvider: CommentProvider;
@@ -523,21 +525,33 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const showStorageLocationCommand = vscode.commands.registerCommand('localComment.showStorageLocation', () => {
+        const projectInfo = commentManager.getProjectInfo();
         const storageFile = commentManager.getStorageFilePath();
+        
+        let message = `📂 项目注释存储信息:\n\n`;
+        message += `🏷️ 项目名称: ${projectInfo.name}\n`;
+        message += `📁 项目路径: ${projectInfo.path}\n`;
+        message += `💾 存储文件: ${storageFile}\n\n`;
+        message += `ℹ️ 注意: 每个项目的注释数据独立存储`;
+        
         vscode.window.showInformationMessage(
-            `注释数据存储位置: ${storageFile}`,
-            '打开文件夹', '复制路径'
+            message,
+            '打开文件夹', '复制路径', '查看项目目录'
         ).then(selection => {
             if (selection === '打开文件夹') {
                 vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(storageFile));
             } else if (selection === '复制路径') {
                 vscode.env.clipboard.writeText(storageFile);
                 vscode.window.showInformationMessage('路径已复制到剪贴板');
+            } else if (selection === '查看项目目录') {
+                const projectDir = path.dirname(path.dirname(storageFile)); // 返回到projects目录
+                vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(projectDir));
             }
         });
     });
 
     const showStorageStatsCommand = vscode.commands.registerCommand('localComment.showStorageStats', () => {
+        const projectInfo = commentManager.getProjectInfo();
         const allComments = commentManager.getAllComments();
         const fileCount = Object.keys(allComments).length;
         const totalComments = Object.values(allComments).reduce((sum, comments) => sum + comments.length, 0);
@@ -546,7 +560,7 @@ export function activate(context: vscode.ExtensionContext) {
         const tagDeclarations = tagManager.getTagDeclarations();
         const tagReferences = tagManager.getTagReferences();
         
-        let message = `📊 注释统计信息:\n\n`;
+        let message = `📊 ${projectInfo.name} 项目注释统计:\n\n`;
         message += `📁 包含注释的文件: ${fileCount} 个\n`;
         message += `💬 总注释数量: ${totalComments} 条\n`;
         message += `🏷️ 标签声明: ${tagDeclarations.size} 个\n`;
@@ -567,8 +581,114 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
         
+        message += `\n💾 存储位置: ${projectInfo.storageFile}`;
+        message += `\nℹ️ 注意: 注释数据按项目分离存储`;
+        
         vscode.window.showInformationMessage(message, { modal: true });
     });
+
+    // 添加管理所有项目注释数据的命令
+    const manageProjectsCommand = vscode.commands.registerCommand('localComment.manageProjects', async () => {
+        try {
+            const globalStorageDir = commentManager.getContext().globalStorageUri?.fsPath || commentManager.getContext().extensionPath;
+            const projectsDir = path.join(globalStorageDir, 'projects');
+            
+            if (!fs.existsSync(projectsDir)) {
+                vscode.window.showInformationMessage('暂无项目注释数据');
+                return;
+            }
+            
+            const files = fs.readdirSync(projectsDir).filter(file => file.endsWith('.json'));
+            
+            if (files.length === 0) {
+                vscode.window.showInformationMessage('暂无项目注释数据');
+                return;
+            }
+            
+            let message = `📋 所有项目注释数据:\n\n`;
+            message += `📁 项目数量: ${files.length} 个\n\n`;
+            
+            let totalFiles = 0;
+            let totalComments = 0;
+            
+            for (const file of files) {
+                const filePath = path.join(projectsDir, file);
+                try {
+                    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                    const fileCount = Object.keys(data).length;
+                    const commentCount = Object.values(data).reduce((sum: number, comments: any) => sum + comments.length, 0);
+                    
+                    totalFiles += fileCount;
+                    totalComments += commentCount;
+                    
+                    // 从文件名解析项目名称（格式：项目名-哈希值.json）
+                    const projectName = file.replace(/-[a-f0-9]+\.json$/, '');
+                    message += `🗂️ ${projectName}: ${fileCount} 个文件, ${commentCount} 条注释\n`;
+                } catch (error) {
+                    console.error(`读取项目文件失败: ${file}`, error);
+                }
+            }
+            
+            message += `\n📊 总计: ${totalFiles} 个文件, ${totalComments} 条注释`;
+            message += `\n💾 存储目录: ${projectsDir}`;
+            
+            vscode.window.showInformationMessage(
+                message,
+                '打开项目目录', '清理旧数据'
+            ).then(selection => {
+                if (selection === '打开项目目录') {
+                    vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(projectsDir));
+                } else if (selection === '清理旧数据') {
+                    showCleanupDialog(projectsDir, files);
+                }
+            });
+            
+        } catch (error) {
+            console.error('管理项目数据失败:', error);
+            vscode.window.showErrorMessage('管理项目数据时发生错误');
+        }
+    });
+
+    // 清理数据对话框
+    async function showCleanupDialog(projectsDir: string, files: string[]) {
+        const items = files.map(file => {
+            const projectName = file.replace(/-[a-f0-9]+\.json$/, '');
+            return {
+                label: projectName,
+                description: file,
+                detail: `删除 ${projectName} 项目的注释数据`
+            };
+        });
+        
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: '选择要删除的项目注释数据',
+            canPickMany: true
+        });
+        
+        if (selected && selected.length > 0) {
+            const confirm = await vscode.window.showWarningMessage(
+                `确定要删除 ${selected.length} 个项目的注释数据吗？此操作不可恢复！`,
+                '确定删除', '取消'
+            );
+            
+            if (confirm === '确定删除') {
+                let deletedCount = 0;
+                for (const item of selected) {
+                    try {
+                        const filePath = path.join(projectsDir, item.description);
+                        fs.unlinkSync(filePath);
+                        deletedCount++;
+                    } catch (error) {
+                        console.error(`删除文件失败: ${item.description}`, error);
+                    }
+                }
+                
+                vscode.window.showInformationMessage(
+                    `已删除 ${deletedCount} 个项目的注释数据`
+                );
+            }
+        }
+    }
 
     // 监听文档变化
     const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
@@ -607,6 +727,7 @@ export function activate(context: vscode.ExtensionContext) {
         editCommentFromTreeCommand,
         showStorageLocationCommand,
         showStorageStatsCommand,
+        manageProjectsCommand,
         onDidChangeTextDocument,
         onDidChangeActiveTextEditor,
         commentProvider,

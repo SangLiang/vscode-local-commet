@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 export interface LocalComment {
     id: string;
@@ -24,8 +25,60 @@ export class CommentManager {
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
-        this.storageFile = path.join(context.globalStorageUri?.fsPath || context.extensionPath, 'local-comments.json');
+        this.storageFile = this.getProjectStorageFile(context);
         this.loadComments();
+        
+        // 监听工作区变化，重新加载注释数据
+        const workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            this.handleWorkspaceChange();
+        });
+        
+        context.subscriptions.push(workspaceWatcher);
+    }
+
+    /**
+     * 处理工作区变化
+     */
+    private async handleWorkspaceChange(): Promise<void> {
+        // 保存当前注释数据
+        await this.saveComments();
+        
+        // 更新存储文件路径
+        this.storageFile = this.getProjectStorageFile(this.context);
+        
+        // 重新加载新工作区的注释数据
+        await this.loadComments();
+        
+        console.log('工作区已切换，注释数据已重新加载');
+    }
+
+    /**
+     * 根据当前工作区生成项目特定的存储文件路径
+     */
+    private getProjectStorageFile(context: vscode.ExtensionContext): string {
+        const globalStorageDir = context.globalStorageUri?.fsPath || context.extensionPath;
+        
+        // 获取当前工作区的根路径
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            // 使用第一个工作区文件夹路径
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            
+            // 创建工作区路径的哈希值作为文件名
+            const pathHash = crypto.createHash('md5').update(workspacePath).digest('hex');
+            const projectName = path.basename(workspacePath);
+            
+            // 确保项目存储目录存在
+            const projectStorageDir = path.join(globalStorageDir, 'projects');
+            if (!fs.existsSync(projectStorageDir)) {
+                fs.mkdirSync(projectStorageDir, { recursive: true });
+            }
+            
+            return path.join(projectStorageDir, `${projectName}-${pathHash}.json`);
+        } else {
+            // 如果没有工作区，使用默认的全局存储（向后兼容）
+            return path.join(globalStorageDir, 'local-comments.json');
+        }
     }
 
     private async loadComments(): Promise<void> {
@@ -39,10 +92,57 @@ export class CommentManager {
             if (fs.existsSync(this.storageFile)) {
                 const data = fs.readFileSync(this.storageFile, 'utf8');
                 this.comments = JSON.parse(data);
+            } else {
+                // 如果项目特定的文件不存在，尝试迁移旧数据
+                this.comments = {};
+                await this.tryMigrateOldData();
             }
         } catch (error) {
             console.error('加载注释失败:', error);
             this.comments = {};
+        }
+    }
+
+    /**
+     * 尝试从旧的全局存储迁移数据到项目特定存储
+     */
+    private async tryMigrateOldData(): Promise<void> {
+        try {
+            const globalStorageDir = this.context.globalStorageUri?.fsPath || this.context.extensionPath;
+            const oldStorageFile = path.join(globalStorageDir, 'local-comments.json');
+            
+            if (!fs.existsSync(oldStorageFile)) {
+                return; // 没有旧数据需要迁移
+            }
+
+            const oldData = fs.readFileSync(oldStorageFile, 'utf8');
+            const allComments: FileComments = JSON.parse(oldData);
+            
+            // 获取当前工作区路径
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                return; // 没有工作区，无法迁移
+            }
+            
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            const projectComments: FileComments = {};
+            
+            // 筛选出属于当前项目的注释
+            for (const [filePath, comments] of Object.entries(allComments)) {
+                if (filePath.startsWith(workspacePath)) {
+                    projectComments[filePath] = comments;
+                }
+            }
+            
+            // 如果有属于当前项目的注释，保存到项目特定文件
+            if (Object.keys(projectComments).length > 0) {
+                this.comments = projectComments;
+                await this.saveComments();
+                console.log(`已迁移 ${Object.keys(projectComments).length} 个文件的注释到项目存储`);
+            }
+            
+        } catch (error) {
+            console.error('迁移旧数据失败:', error);
         }
     }
 
@@ -516,6 +616,35 @@ export class CommentManager {
 
     public getStorageFilePath(): string {
         return this.storageFile;
+    }
+
+    /**
+     * 获取当前项目信息
+     */
+    public getProjectInfo(): { name: string; path: string; storageFile: string } {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+            const projectName = path.basename(workspacePath);
+            return {
+                name: projectName,
+                path: workspacePath,
+                storageFile: this.storageFile
+            };
+        } else {
+            return {
+                name: '未知项目',
+                path: '无工作区',
+                storageFile: this.storageFile
+            };
+        }
+    }
+
+    /**
+     * 获取扩展上下文
+     */
+    public getContext(): vscode.ExtensionContext {
+        return this.context;
     }
 
     /**
