@@ -13,6 +13,10 @@ let commentProvider: CommentProvider;
 let commentTreeProvider: CommentTreeProvider;
 let tagManager: TagManager;
 
+// 全局变量，用于跟踪最后一次键盘活动时间
+let lastKeyboardActivity = Date.now();
+const KEYBOARD_ACTIVITY_THRESHOLD = 1000; // 1秒内有键盘活动才视为手动编辑
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('本地注释插件已激活');
 
@@ -759,7 +763,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 监听文档变化
     const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
-        commentManager.handleDocumentChange(event);
+        // 获取当前时间
+        const now = Date.now();
+        // 只有在最近有键盘活动的情况下才更新代码快照
+        const hasRecentKeyboardActivity = (now - lastKeyboardActivity < KEYBOARD_ACTIVITY_THRESHOLD);
+        
+        // 传递键盘活动信息给commentManager
+        commentManager.handleDocumentChange(event, hasRecentKeyboardActivity);
         tagManager.updateTags(commentManager.getAllComments());
         commentProvider.refresh();
         commentTreeProvider.refresh();
@@ -768,6 +778,18 @@ export function activate(context: vscode.ExtensionContext) {
     // 监听活动编辑器变化
     const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor(() => {
         commentProvider.refresh();
+    });
+
+    // 添加键盘事件监听
+    const onDidChangeTextEditorSelection = vscode.window.onDidChangeTextEditorSelection(() => {
+        // 更新最后一次键盘活动时间
+        lastKeyboardActivity = Date.now();
+    });
+
+    // 添加键盘输入事件监听（更全面的键盘活动捕获）
+    const onDidChangeTextEditorVisibleRanges = vscode.window.onDidChangeTextEditorVisibleRanges(() => {
+        // 更新最后一次键盘活动时间
+        lastKeyboardActivity = Date.now();
     });
 
     // 在注册自动补全和定义提供器的部分后添加
@@ -798,6 +820,8 @@ export function activate(context: vscode.ExtensionContext) {
         manageProjectsCommand,
         onDidChangeTextDocument,
         onDidChangeActiveTextEditor,
+        onDidChangeTextEditorSelection,
+        onDidChangeTextEditorVisibleRanges,
         commentProvider,
         treeView,
         completionDisposable,

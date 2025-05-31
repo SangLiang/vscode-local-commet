@@ -22,6 +22,7 @@ export class CommentManager {
     private context: vscode.ExtensionContext;
     private updateTimer: NodeJS.Timeout | null = null; // 防抖定时器
     private pendingUpdates: Set<string> = new Set(); // 待更新的文件路径
+    private _hasKeyboardActivity = false; // 记录键盘活动状态
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -399,11 +400,19 @@ export class CommentManager {
         return normalized.length >= 3 ? normalized : '';
     }
 
-    public async handleDocumentChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
+    public async handleDocumentChange(event: vscode.TextDocumentChangeEvent, hasRecentKeyboardActivity: boolean = true): Promise<void> {
         const filePath = event.document.uri.fsPath;
         const fileComments = this.comments[filePath];
         
         if (!fileComments || fileComments.length === 0) {
+            return;
+        }
+
+        // 只有在有最近键盘活动时才处理直接编辑注释所在行的情况
+        // 这可以避免Git分支切换等非用户编辑操作触发代码快照更新
+        if (!hasRecentKeyboardActivity) {
+            // 如果没有键盘活动，可能是Git分支切换等操作导致的文件变化
+            console.log('⏭️ 未检测到键盘活动，可能是Git分支切换，跳过代码快照更新');
             return;
         }
 
@@ -461,6 +470,9 @@ export class CommentManager {
 
         // 将这个文件标记为需要智能更新（处理可能需要重新匹配的注释）
         this.pendingUpdates.add(filePath);
+        
+        // 记录键盘活动状态
+        this._hasKeyboardActivity = hasRecentKeyboardActivity;
 
         // 使用防抖机制：清除之前的定时器，设置新的定时器
         if (this.updateTimer) {
@@ -484,6 +496,13 @@ export class CommentManager {
      * 执行智能更新：只有当注释确实匹配到正确位置时，才更新代码快照
      */
     private async performSmartUpdates(): Promise<void> {
+        // 如果没有键盘活动，可能是Git分支切换，跳过智能更新
+        if (!this._hasKeyboardActivity) {
+            console.log('⏭️ 未检测到键盘活动，跳过智能更新');
+            this.pendingUpdates.clear();
+            return;
+        }
+
         let totalUpdates = 0;
         
         for (const filePath of this.pendingUpdates) {
