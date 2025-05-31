@@ -457,43 +457,62 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
+            // 打开文档
+            const document = await vscode.workspace.openTextDocument(uri);
+            const editor = await vscode.window.showTextDocument(document);
+            
             // 使用智能匹配验证注释是否还能找到对应的代码
             const comments = commentManager.getComments(uri);
             const matchedComment = comments.find(c => c.id === targetComment.id);
             
-            if (!matchedComment) {
-                // 注释无法匹配到代码，提示用户
-                vscode.window.showWarningMessage(
-                    `注释"${targetComment.content}"暂时找不到对应的代码。可能是代码被修改、删除，或者在不同的Git分支中。`, 
-                    '查看注释详情'
-                ).then(selection => {
-                    if (selection === '查看注释详情') {
-                        // 显示注释详细信息
-                        const message = `注释内容: ${targetComment.content}\n` +
-                                      `原始代码: ${targetComment.lineContent || '未知'}\n` +
-                                      `创建时间: ${new Date(targetComment.timestamp).toLocaleString()}`;
-                        vscode.window.showInformationMessage(message, { modal: true });
-                    }
-                });
-                return;
+            if (matchedComment) {
+                // 注释能找到对应代码，执行跳转到匹配位置
+                const position = new vscode.Position(matchedComment.line, 0);
+                editor.selection = new vscode.Selection(position, position);
+                editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                
+                // 如果位置发生了变化，提示用户
+                if (matchedComment.line !== targetComment.line) {
+                    vscode.window.showInformationMessage(
+                        `注释位置已更新：第 ${targetComment.line + 1} 行 → 第 ${matchedComment.line + 1} 行`
+                    );
+                }
+            } else {
+                // 注释无法匹配到代码，检查原始行是否仍然存在
+                if (targetComment.line < document.lineCount) {
+                    // 原始行仍然存在，跳转到原始行
+                    const position = new vscode.Position(targetComment.line, 0);
+                    editor.selection = new vscode.Selection(position, position);
+                    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+                    
+                    vscode.window.showInformationMessage(
+                        `注释"${targetComment.content.substring(0, 30)}${targetComment.content.length > 30 ? '...' : ''}"的代码内容已变化，已跳转到原始行`,
+                        '查看注释详情'
+                    ).then(selection => {
+                        if (selection === '查看注释详情') {
+                            // 显示注释详细信息
+                            const message = `注释内容: ${targetComment.content}\n` +
+                                          `原始代码: ${targetComment.lineContent || '未知'}\n` +
+                                          `创建时间: ${new Date(targetComment.timestamp).toLocaleString()}`;
+                            vscode.window.showInformationMessage(message, { modal: true });
+                        }
+                    });
+                } else {
+                    // 原始行也不存在，提示用户
+                    vscode.window.showWarningMessage(
+                        `注释"${targetComment.content.substring(0, 30)}${targetComment.content.length > 30 ? '...' : ''}"暂时找不到对应的代码。可能是代码被修改、删除，或者在不同的Git分支中。`, 
+                        '查看注释详情'
+                    ).then(selection => {
+                        if (selection === '查看注释详情') {
+                            // 显示注释详细信息
+                            const message = `注释内容: ${targetComment.content}\n` +
+                                          `原始代码: ${targetComment.lineContent || '未知'}\n` +
+                                          `创建时间: ${new Date(targetComment.timestamp).toLocaleString()}`;
+                            vscode.window.showInformationMessage(message, { modal: true });
+                        }
+                    });
+                }
             }
-
-            // 注释能找到对应代码，执行跳转
-            const document = await vscode.workspace.openTextDocument(uri);
-            const editor = await vscode.window.showTextDocument(document);
-            
-            // 跳转到匹配后的正确位置
-            const position = new vscode.Position(matchedComment.line, 0);
-            editor.selection = new vscode.Selection(position, position);
-            editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-            
-            // 如果位置发生了变化，提示用户
-            if (matchedComment.line !== targetComment.line) {
-                vscode.window.showInformationMessage(
-                    `注释位置已更新：第 ${targetComment.line + 1} 行 → 第 ${matchedComment.line + 1} 行`
-                );
-            }
-            
         } catch (error) {
             console.error('跳转到注释时发生错误:', error);
             vscode.window.showErrorMessage('无法打开文件或跳转到指定位置');

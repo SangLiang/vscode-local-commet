@@ -1,37 +1,37 @@
-# VSCode Local Comment
+# VSCode Local Comments
 
-A code annotation and note-taking tool for learning source code, onboarding new projects, and developing large-scale applications.
+A tool for adding auxiliary comments and notes when learning source code, starting new projects, or developing large projects.
 
-Allows you to add local comments, markdown notes, and file jump tags to your code without modifying the original files or committing to version control.
+This extension allows you to add local comments, markdown notes, and file navigation tags without affecting the original files or submitting to version control systems.
 
-### Tag Jump
+### Tag Navigation
 ![image](https://raw.githubusercontent.com/SangLiang/vscode-local-commet/refs/heads/master/images/jump.gif)
 ### Markdown Local Comments
 ![image](https://raw.githubusercontent.com/SangLiang/vscode-local-commet/refs/heads/master/images/markdown.gif)
 
 ## 👀 Key Problems Solved
 
-**1. Code Reading and Understanding Annotation Needs**
-  - Record code logic and design ideas, add learning notes and understanding insights, support markdown syntax, allowing you to fully document implementation approaches
+**1. Code Reading and Understanding Comments**
+  - Record code logic and design thinking, add learning notes and insights, support markdown syntax, allowing you to completely document implementation ideas
 
-**2. Cross-File Code Relationship Marking (Similar to traditional bookmarks, but with more contextual information for understanding)**
-  - Solved cross-file code association problems through a tag system:
-  - Tag Declaration: Use $tagName to define key points
-  - Tag Reference: Use @tagName to reference code in other locations
-  - Click Navigation: Click on tags in comment content to jump to definition locations
+**2. Cross-File Code Relationship Marking (Similar to traditional bookmarks, but with more context information for understanding)**
+  - Solve cross-file code association problems through the tag system:
+  - Tag declaration: Use $tagName to define key points
+  - Tag reference: Use @tagName to reference code elsewhere
+  - Click to navigate: Click on tags in comments to jump to definition locations
   - Auto-completion: Smart tag suggestions when typing @
 
 **3. Comment Independence**
   - Comments don't modify source code files
-  - Comments aren't committed to version control
-  - Comments persist across sessions, remaining after VSCode restarts
-  - Each project has its own independent comment storage file, allowing free backup and restoration, with no interference between projects
+  - Comments won't be committed to version control systems
+  - Comments persist across sessions and remain after restarting VSCode
+  - Each project has independent comment storage files that can be freely backed up and restored, with different projects not interfering with each other
 
 ## ✨ Main Features
 
 ### 📝 Local Comments
 - **Add Comments**: Add local comments to any code line
-- **Selection Conversion**: Right-click selected text to convert it to a local comment and delete the original text
+- **Selection Conversion**: Right-click selected text to directly convert it to a local comment and delete the original text
 - **Edit Comments**: Modify existing comment content anytime
 - **Delete Comments**: Easily remove unwanted comments
 - **Smart Position Tracking**: Automatically adjust comment positions when code changes
@@ -42,44 +42,44 @@ Allows you to add local comments, markdown notes, and file jump tags to your cod
 - **Tag Reference**: Use `@tagName` to reference tags
 - **Auto-completion**: Automatically display available tags when typing `@`
 - **Click Navigation**: Click tag references to jump directly to declaration locations
-- **Cross-file Support**: Tags can be referenced across different files
+- **Cross-file Support**: Tags can be referenced between different files
 
 ### 💾 Data Management
 - **Local Storage**: Comment data stored locally, not synced to version control
-- **Cross-session Persistence**: Comments remain after VSCode restarts
-- **Smart Backup**: Automatic saving with manual backup and restore support
+- **Cross-session Persistence**: Comments remain after restarting VSCode
+- **Smart Backup**: Automatic saving, with support for manual backup and recovery
 
 ## 🔑 Best Practices
 
-Local comments work best when applied to the same line as function declarations. For example:
+Local comments are best applied on the same line as function declarations. For example:
 
 ```javascript
-function test { // local comment works best here
+function test { // local comment best placed here
   test code 
 }
 ```
 
-This reduces issues with comment position matching when switching branches or making large code changes. Try to avoid applying local comments to empty lines.
+This reduces the problem of comments not matching code positions when switching branches or making large-scale code modifications. Try to avoid applying local comments on empty lines.
 
 ## 🚀 Quick Start
 
 ### Installation
 1. Open VSCode
 2. Press `Ctrl+Shift+X` to open the extensions panel
-3. Search for "Local Comment"
-4. Click Install
+3. Search for "Local Comments"
+4. Click install
 
 ### Basic Usage
 
 #### Adding Comments
-1. Place cursor on the code line where you want to add a comment
+1. Place the cursor on the code line where you want to add a comment
 2. Press `Ctrl+Shift+C` or right-click and select "Add Local Comment"
-3. Enter comment content
+3. Enter the comment content
 
-#### Converting Selected Text to Comment
-1. Select text to convert to comment
+#### Converting Selected Text to Comments
+1. Select the text you want to convert to a comment
 2. Right-click and select "Convert to Local Comment"
-3. Selected text becomes a comment, original code is deleted
+3. The selected text becomes a comment, and the original code is deleted
 
 #### Multi-line Editing
 1. Hover over an existing comment
@@ -89,9 +89,9 @@ This reduces issues with comment position matching when switching branches or ma
 
 #### Using Tags
 ```javascript
-let userConfig = {};  // Local Comment: This is where $userConfig is declared
+let userConfig = {};  // Local comment: This is where $userConfig is declared
 
-function loadConfig() {// Local Comment: Here we load the @userConfig configuration
+function loadConfig() {// Local comment: This loads the @userConfig configuration
     userConfig = JSON.parse(localStorage.getItem('config'));
 }
 ```
@@ -105,28 +105,28 @@ function loadConfig() {// Local Comment: Here we load the @userConfig configurat
 - `Ctrl+Shift+D`: Delete current line comment
 
 ### Tag Features
-- **Tag Declaration**: `$tagName` - Declare a tag in a comment
-- **Tag Reference**: `@tagName` - Reference a declared tag
-- **Auto-completion**: Show available tag list when typing `@`
-- **Navigation**: Click `@tagName` to jump to `$tagName` location
+- **Declare Tags**: `$tagName` - Declare a tag in a comment
+- **Reference Tags**: `@tagName` - Reference a declared tag
+- **Auto-completion**: Display available tag list when typing `@`
+- **Navigation**: Click `@tagName` to jump to the `$tagName` location
 
 ### Comment Management
 - **Sidebar Panel**: View "Local Comments" panel in the explorer
-- **Comment List**: Display all file comments
-- **Quick Navigation**: Click comment items to jump to locations
+- **Comment List**: Display a list of comments for all files
+- **Quick Navigation**: Click comment items to jump to corresponding locations
 - **Batch Operations**: Edit or delete comments in the panel
 
 ### Smart Features
 - **Position Tracking**: Automatically adjust comment positions when code changes
-- **Content Matching**: Intelligently reposition comments through line content
-- **Cross-file References**: Tags can establish relationships between files
+- **Content Matching**: Intelligently reposition comments by line content
+- **Cross-file References**: Tags can establish associations between different files
 
 ## 📊 Usage Statistics
 
-Use the command palette (`Ctrl+Shift+P`) to search for these commands:
+Use the command palette (`Ctrl+Shift+P`) to search for the following commands:
 
-- **Show Comment Statistics**: View comment count, tag statistics, and other information
-- **Show Storage Location**: View comment data storage location
+- **Show Comment Statistics**: View comment count, tag statistics, etc.
+- **Show Storage Location**: View the storage location of comment data
 
 ## 💾 Data Storage
 
@@ -147,43 +147,43 @@ another-project-g7h8i9j0k1l2.json
 
 ### Data Characteristics
 - Comment data stored locally by project
-- Not committed to version control
-- Supports manual backup and restore
-- Persists across VSCode sessions
+- Not committed to version control systems
+- Support for manual backup and recovery
+- Persistence across VSCode sessions
 - Each project maintains an independent comment database
 
 ## 🎯 Use Cases
 
 ### 1. Code Understanding
 ```javascript
-function complexAlgorithm() {  // Local Comment: $complexAlgorithm core algorithm
+function complexAlgorithm() {  // Local comment: $complexAlgorithm core algorithm
     // Complex algorithm implementation
 }
 
 // Elsewhere
-if (needOptimization) {  // Local Comment: This might need optimization of @complexAlgorithm
+if (needOptimization) {  // Local comment: May need to optimize @complexAlgorithm here
     complexAlgorithm();
 }
 ```
 
 ### 2. Temporary Marking
 ```javascript
-const API_KEY = 'xxx';  // Local Comment: $API_KEY needs to be obtained from environment variables
+const API_KEY = 'xxx';  // Local comment: $API_KEY should be obtained from environment variables
 
 fetch(url, {
-    headers: { 'Authorization': API_KEY }  // Local Comment: Using @API_KEY for authentication
+    headers: { 'Authorization': API_KEY }  // Local comment: Using @API_KEY for authentication
 });
 ```
 
 ### 3. Learning Notes
 ```javascript
-class EventEmitter {  // Local Comment: $EventEmitter observer pattern implementation
-    on(event, callback) {  // Local Comment: Register event listener
+class EventEmitter {  // Local comment: $EventEmitter observer pattern implementation
+    on(event, callback) {  // Local comment: Register event listeners
         // Implementation code
     }
 }
 
-emitter.on('data', handler);  // Local Comment: Listening to @EventEmitter's data event
+emitter.on('data', handler);  // Local comment: Listening to @EventEmitter's data event
 ```
 
 ## 🔧 Development
@@ -196,75 +196,81 @@ npm run compile
 
 ### Debugging
 1. Press `F5` to start debugging
-2. Test the extension in a new VSCode window
+2. Test the plugin in a new VSCode window
 
 ## 📝 Changelog
 
-### Change Log
+### Version History
+
+## [1.0.5] - 2025-05-31
+
+### 🔨 Bug Fixes
+
+- ✨ Fixed an issue where switching Git branches incorrectly executed code to update comment snapshots, causing comment positions to become disordered. This problem has now been fixed.
 
 ## [1.0.4] - 2025-05-31
 
 ### ✨ User Experience Improvements
 
-- 🎉 Added new shortcut ctrl+shift+m to directly enter markdown mode for adding and modifying local comments
+- 🎉 Added new shortcut Ctrl+Shift+M to directly enter markdown mode for adding and modifying local comments
 
 ### 🔨 Bug Fixes
 
-- 🔨 Fixed issue where cursor focus was lost when returning to code editor after completing markdown editing
+- 🔨 Fixed an issue where after completing edits in the markdown editor, focus was lost when returning to the code editor
 
 ## [1.0.3] - 2025-05-31
 
 ### 🔨 Bug Fixes
-- 🔨 Fixed issue where different projects were using the same local comment storage file
-- 🎯 Other known issues
+- 🔨 Fixed an issue where different projects were using the same local comment storage file
+- 🎯 Various other known errors
 
 ## [1.0.2] - 2025-05-30
 
 ### 🔨 Bug Fixes
 - 🔨 Fixed comment position errors caused by branch switching
-- 💻 Fixed tag auto-completion position errors in Markdown editing
+- 💻 Fixed incorrect smart completion position when editing in Markdown
 
 ## [1.0.1] - 2025-05-30
 
 ### 🎉 New Features
 
-- ✨ **Selection to Comment Conversion**: Right-click selected text to directly convert to local comment and delete original text
+- ✨ **Selected Text Conversion**: Right-click selected text to directly convert it to local comments and delete original text
 - 📝 **Multi-line Editor**: Added professional multi-line comment editing interface with rich editing features
-- 🎨 **Dual Edit Modes**: 
-  - Quick Mode: Single-line quick editing
-  - Detailed Mode: Multi-line rich text editing
+- 🎨 **Dual Editing Modes**: 
+  - Quick mode: Single-line fast editing
+  - Detailed mode: Multi-line rich text editing
 - ⌨️ **Enhanced Shortcuts**: 
   - Ctrl+Enter: Save edits
-- 🏷️ **Improved Tag Completion**: Auto-display tag dropdown when typing @ in editor
+- 🏷️ **Improved Tag Completion**: Automatically display tag dropdown when typing @ in the editor
 - 🖱️ **Hover Action Buttons**: 
   - ✏️ Edit: Quick single-line editing
-  - 📝 Markdown Edit: Multi-line detailed editing  
-  - 🗑️ Delete: Delete comment
+  - 📝 Markdown Edit: Detailed multi-line editing  
+  - 🗑️ Delete: Delete comments
 
 ### 📖 New Use Cases
 
 #### Quick Code Segment Marking
-1. Select code to mark
+1. Select the code you need to mark
 2. Right-click and select "Convert to Local Comment"
-3. Selected code becomes a comment, original code automatically deleted
+3. The selected code becomes a comment, and the original code is automatically deleted
 
 #### Writing Long Comments
-1. Hover over comment
+1. Hover over a comment
 2. Click "📝 Markdown Edit"
-3. Write detailed explanation in multi-line editor
+3. Write detailed explanations in the multi-line editor
 4. Supports line breaks (\n) and tag references
 
 ## [1.0.0] - 2025-05-29
 
 ### New Features
-- ✨ Local comment functionality: Add local comments to code without modifying original files
-- 🏷️ Tag system: Support `$tagName` declaration and `@tagName` reference
-- 🔗 Smart navigation: Click tag references to jump to declaration locations
-- 💡 Auto-completion: Auto-suggest available tags when typing `@`
-- 🌲 Tree view: View all comments in sidebar
-- ⌨️ Shortcut support: Ctrl+Shift+C to add comments
-- 🎨 Syntax highlighting: Tags highlighted in comments
-- 📁 Cross-file support: Tags can be referenced across files
+- ✨ Local Comment Functionality: Add local comments in code without modifying the original file
+- 🏷️ Tag System: Support `$tagName` declarations and `@tagName` references
+- 🔗 Smart Navigation: Click tag references to jump to declaration locations
+- 💡 Auto-completion: Automatically suggest available tags when typing `@`
+- 🌲 Tree View: View all comments in the sidebar
+- ⌨️ Shortcut Support: Ctrl+Shift+C to add comments
+- 🎨 Syntax Highlighting: Tags highlighted in comments
+- 📁 Cross-file Support: Tags can be referenced between different files
 
 ## 📄 License
 
@@ -477,11 +483,17 @@ npm run compile
 
 ### 变更日志
 
+## [1.0.5] - 2025-05-31
+
+### 🔨 修复bug
+
+- ✨git branch 切换分支的时候，错误的执行了更新注释代码快照的代码，导致注释的位置错乱。现在已经修复这个问题。
+
 ## [1.0.4] - 2025-05-31
 
 ### ✨优化用户体验
 
-- 🎉加入新的快捷键ctrl+shift+m 允许直接进入markdown模式的添加，修改本地注释
+- 🎉 加入新的快捷键ctrl+shift+m 允许直接进入markdown模式的添加，修改本地注释
 
 ### 🔨 修复bug
 
