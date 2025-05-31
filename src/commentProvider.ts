@@ -208,20 +208,53 @@ export class CommentProvider implements vscode.Disposable {
             
             // 构建Markdown内容
             markdownContent.appendMarkdown(`**💬 本地注释**\n\n`);
-            markdownContent.appendMarkdown(processedContent);
+            
+            // 将注释内容中的@标签转换为可点击的链接
+            const segments = this.parseCommentIntoSegments(processedContent);
+            let enhancedContent = '';
+            
+            for (const segment of segments) {
+                if (segment.isTag && segment.text.startsWith('@')) {
+                    // 提取标签名（去掉@符号）
+                    const tagName = segment.text.substring(1);
+                    // 创建可点击链接
+                    enhancedContent += `[${segment.text}](command:localComment.goToTagDeclaration?${encodeURIComponent(JSON.stringify({tagName}))})`;
+                } else {
+                    // 普通文本直接添加
+                    enhancedContent += segment.text;
+                }
+            }
+            
+            markdownContent.appendMarkdown(enhancedContent);
             markdownContent.appendMarkdown(`\n\n`);
             
-            // 恢复完整的标签处理逻辑
+            // 添加标签信息部分（保留原有功能作为备用）并进行去重
             const tags = this.extractTagsFromContent(comment.content);
             if (tags.length > 0) {
-                markdownContent.appendMarkdown(`**🏷️ 标签信息**\n\n`);
+                // 使用Set进行去重
+                const declarationTags = new Set<string>();
+                const referenceTags = new Set<string>();
+                
+                // 收集唯一标签
                 for (const tag of tags) {
                     if (tag.type === 'declaration') {
-                        markdownContent.appendMarkdown(`🏷️ **声明**: \`${tag.text}\`\n\n`);
+                        declarationTags.add(tag.text);
                     } else {
-                        const tagName = tag.text.substring(1);
-                        markdownContent.appendMarkdown(`🔗 **引用**: \`${tag.text}\` - [跳转到声明](command:localComment.goToTagDeclaration?${encodeURIComponent(JSON.stringify({tagName}))})\n\n`);
+                        referenceTags.add(tag.text);
                     }
+                }
+                
+                markdownContent.appendMarkdown(`**🏷️ 标签信息**\n\n`);
+                
+                // 处理声明标签
+                for (const tagText of declarationTags) {
+                    markdownContent.appendMarkdown(`🏷️ **声明**: \`${tagText}\`\n\n`);
+                }
+                
+                // 处理引用标签
+                for (const tagText of referenceTags) {
+                    const tagName = tagText.substring(1);
+                    markdownContent.appendMarkdown(`🔗 **引用**: \`${tagText}\` - [跳转到声明](command:localComment.goToTagDeclaration?${encodeURIComponent(JSON.stringify({tagName}))})\n\n`);
                 }
             }
             

@@ -1,8 +1,8 @@
 {
   "name": "vscode-local-comment",
   "displayName": "Local Comment(本地注释)",
-  "description": "Add local comments in the code, support user-defined tag jumps, and support markdown notes. The modification will not affect the original file, nor will it submit local comments to the version control tool. The comment content supports backup and recovery.(在代码中添加本地注释，支持用户自定义标签跳转，支持markdown笔记。修改不会影响原文件，也不会将本地注释提交到版本管理工具，注释内容支持备份与恢复。)",
-  "version": "1.0.3",
+  "description": "Add local comments in the code, support user-defined tag jumps, and support markdown notes. The modification will not affect the original file, nor will it submit local comments to the version control tool. The comment content supports backup and recovery.(添加本地注释，支持用户标签跳转，markdown笔记。修改不会影响原文件)",
+  "version": "1.0.4",
   "publisher": "sangliang",
   "author": {
     "name": "SangLiang",
@@ -50,6 +50,11 @@
       {
         "command": "localComment.addComment",
         "title": "Add Local Comment",
+        "category": "Local Comment"
+      },
+      {
+        "command": "localComment.addMarkdownComment",
+        "title": "Add Markdown Local Comment",
         "category": "Local Comment"
       },
       {
@@ -140,6 +145,12 @@
         "command": "localComment.addComment",
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "localComment.addMarkdownComment",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
         "when": "editorTextFocus"
       },
       {

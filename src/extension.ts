@@ -77,6 +77,73 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // 注册添加Markdown多行注释的命令
+    const addMarkdownCommentCommand = vscode.commands.registerCommand('localComment.addMarkdownComment', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('请先打开一个文件');
+            return;
+        }
+
+        const line = editor.selection.active.line;
+        const document = editor.document;
+        const lineContent = document.lineAt(line).text;
+        const fileName = document.fileName.split(/[/\\]/).pop() || '';
+        
+        // 检查当前行是否已有注释
+        const comments = commentManager.getComments(editor.document.uri);
+        const existingComment = comments.find(c => c.line === line);
+        
+        try {
+            if (existingComment) {
+                // 如果有现有注释，进入编辑模式
+                const newContent = await showWebViewInput(
+                    '编辑多行本地注释',
+                    '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
+                    existingComment.content,
+                    {
+                        fileName,
+                        lineNumber: line,
+                        lineContent
+                    }
+                );
+                
+                if (newContent !== undefined && newContent !== existingComment.content) {
+                    await commentManager.editComment(editor.document.uri, existingComment.id, newContent);
+                    // 刷新标签和界面
+                    tagManager.updateTags(commentManager.getAllComments());
+                    commentProvider.refresh();
+                    commentTreeProvider.refresh();
+                    vscode.window.showInformationMessage('注释已更新');
+                }
+            } else {
+                // 如果没有现有注释，添加新注释
+                const content = await showWebViewInput(
+                    '添加多行本地注释',
+                    '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
+                    '',
+                    {
+                        fileName,
+                        lineNumber: line,
+                        lineContent
+                    }
+                );
+                
+                if (content !== undefined && content.trim() !== '') {
+                    await commentManager.addComment(editor.document.uri, line, content);
+                    // 刷新标签和界面
+                    tagManager.updateTags(commentManager.getAllComments());
+                    commentProvider.refresh();
+                    commentTreeProvider.refresh();
+                    vscode.window.showInformationMessage('注释已添加');
+                }
+            }
+        } catch (error) {
+            console.error('处理多行注释时出错:', error);
+            vscode.window.showErrorMessage(`操作失败: ${error}`);
+        }
+    });
+
     // 注册转换选中文字为本地注释的命令
     const convertSelectionToCommentCommand = vscode.commands.registerCommand('localComment.convertSelectionToComment', async () => {
         const editor = vscode.window.activeTextEditor;
@@ -711,6 +778,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         addCommentCommand,
+        addMarkdownCommentCommand,
         convertSelectionToCommentCommand,
         editCommentFromHoverCommand,
         quickEditCommentFromHoverCommand,
@@ -865,6 +933,9 @@ async function showWebViewInput(
         selectedText?: string;
     }
 ): Promise<string | undefined> {
+    // 保存当前活动编辑器的引用，以便稍后恢复焦点
+    const activeEditor = vscode.window.activeTextEditor;
+    
     return new Promise((resolve) => {
         // 创建WebView面板
         const panel = vscode.window.createWebviewPanel(
@@ -891,10 +962,14 @@ async function showWebViewInput(
                     case 'save':
                         resolve(message.content);
                         panel.dispose();
+                        // WebView关闭后恢复编辑器焦点
+                        setTimeout(() => restoreFocus(activeEditor), 100);
                         break;
                     case 'cancel':
                         resolve(undefined);
                         panel.dispose();
+                        // WebView关闭后恢复编辑器焦点
+                        setTimeout(() => restoreFocus(activeEditor), 100);
                         break;
                 }
             }
@@ -903,8 +978,21 @@ async function showWebViewInput(
         // 面板关闭时返回undefined
         panel.onDidDispose(() => {
             resolve(undefined);
+            // WebView关闭后恢复编辑器焦点
+            setTimeout(() => restoreFocus(activeEditor), 100);
         });
     });
+}
+
+// 辅助函数：恢复编辑器焦点
+function restoreFocus(editor: vscode.TextEditor | undefined) {
+    if (editor) {
+        vscode.window.showTextDocument(editor.document, {
+            viewColumn: editor.viewColumn,
+            selection: editor.selection,
+            preserveFocus: false
+        });
+    }
 }
 
 function getWebviewContent(prompt: string, placeholder: string, existingContent: string, tagSuggestions: string, contextInfo?: {

@@ -661,10 +661,39 @@ export class CommentManager {
         }
 
         // 获取选中文字所在的行号（使用起始行）
-        const line = selection.start.line;
+        let line = selection.start.line;
+        
+        // 删除选中的文字
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document.uri.fsPath === filePath) {
+            await editor.edit(editBuilder => {
+                editBuilder.delete(selection);
+            });
+            
+            // 检查删除文字后，当前行是否为空行
+            const document = editor.document;
+            const currentLineText = document.lineAt(line).text.trim();
+            
+            // 如果当前行变成了空行，向下查找第一个非空行
+            if (currentLineText === '') {
+                let nextNonEmptyLine = -1;
+                
+                // 从当前行向下查找第一个非空行
+                for (let i = line + 1; i < document.lineCount; i++) {
+                    if (document.lineAt(i).text.trim() !== '') {
+                        nextNonEmptyLine = i;
+                        break;
+                    }
+                }
+                
+                // 如果找到了非空行，更新line值
+                if (nextNonEmptyLine !== -1) {
+                    line = nextNonEmptyLine;
+                    vscode.window.showInformationMessage(`已将注释移动到第 ${line + 1} 行（当前行为空）`);
+                }
+            }
         
         // 获取当前行的内容用于智能定位
-        const document = await vscode.workspace.openTextDocument(uri);
         const lineContent = document.lineAt(line).text;
 
         // 创建本地注释
@@ -688,15 +717,10 @@ export class CommentManager {
         // 保存注释
         await this.saveComments();
 
-        // 删除选中的文字
-        const editor = vscode.window.activeTextEditor;
-        if (editor && editor.document.uri.fsPath === filePath) {
-            await editor.edit(editBuilder => {
-                editBuilder.delete(selection);
-            });
-        }
-
         vscode.window.showInformationMessage(`已将选中文字转换为第 ${line + 1} 行的本地注释`);
+        } else {
+            vscode.window.showErrorMessage('无法访问活动编辑器');
+        }
     }
 
     /**
