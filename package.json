@@ -207,6 +207,16 @@
           "command": "localComment.deleteCommentFromTree",
           "when": "view == localComments && viewItem == comment",
           "group": "inline"
+        },
+        {
+          "command": "localComment.editCommentFromTree",
+          "when": "view == localComments && viewItem == hidden-comment",
+          "group": "inline"
+        },
+        {
+          "command": "localComment.deleteCommentFromTree",
+          "when": "view == localComments && viewItem == hidden-comment",
+          "group": "inline"
         }
       ]
     }

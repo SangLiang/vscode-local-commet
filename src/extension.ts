@@ -29,6 +29,21 @@ export function activate(context: vscode.ExtensionContext) {
     // 初始化标签数据
     tagManager.updateTags(commentManager.getAllComments());
 
+    // 注册用于修改树视图样式的CSS
+    const decorationProvider = vscode.window.registerFileDecorationProvider({
+        provideFileDecoration: (uri) => {
+            if (uri.scheme === 'hidden-comment') {
+                return {
+                    propagate: true,
+                    color: new vscode.ThemeColor('descriptionForeground'),
+                    tooltip: '此注释当前无法匹配到代码'
+                };
+            }
+            return undefined;
+        }
+    });
+    context.subscriptions.push(decorationProvider);
+
     // 注册自动补全和定义提供器
     const completionProvider = new TagCompletionProvider(tagManager, commentManager);
     const definitionProvider = new TagDefinitionProvider(tagManager, commentManager);

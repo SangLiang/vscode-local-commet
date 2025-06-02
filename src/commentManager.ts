@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { CommentMatcher } from './commentMatcher';
 
 export interface LocalComment {
     id: string;
@@ -10,6 +11,7 @@ export interface LocalComment {
     timestamp: number;
     originalLine: number; // 原始行号，用于跟踪位置变化
     lineContent: string; // 该行的内容，用于智能定位
+    isMatched?: boolean; // 标记注释是否匹配到代码
 }
 
 export interface FileComments {
@@ -23,10 +25,12 @@ export class CommentManager {
     private updateTimer: NodeJS.Timeout | null = null; // 防抖定时器
     private pendingUpdates: Set<string> = new Set(); // 待更新的文件路径
     private _hasKeyboardActivity = false; // 记录键盘活动状态
+    private commentMatcher: CommentMatcher; // 注释匹配器
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
         this.storageFile = this.getProjectStorageFile(context);
+        this.commentMatcher = new CommentMatcher(); // 实例化注释匹配器
         this.loadComments();
         
         // 监听工作区变化，重新加载注释数据
@@ -295,12 +299,16 @@ export class CommentManager {
         let needsSave = false;
 
         for (const comment of fileComments) {
-            const matchedLine = this.findMatchingLine(document, comment);
+            const matchedLine = this.commentMatcher.findMatchingLine(document, comment);
             if (matchedLine !== -1) {
+                // 记录匹配状态为true
+                comment.isMatched = true;
+                
                 // 创建一个新的注释对象，更新行号但保持原有信息
                 const matchedComment: LocalComment = {
                     ...comment,
-                    line: matchedLine
+                    line: matchedLine,
+                    isMatched: true // 确保复制的对象也有匹配状态
                 };
                 matchedComments.push(matchedComment);
                 
@@ -309,8 +317,10 @@ export class CommentManager {
                     comment.line = matchedLine;
                     needsSave = true;
                 }
+            } else {
+                // 标记为未匹配
+                comment.isMatched = false;
             }
-            // 如果找不到匹配的行，暂时不显示该注释
         }
 
         // 如果有位置更新，保存到文件
@@ -319,85 +329,6 @@ export class CommentManager {
         }
 
         return matchedComments;
-    }
-
-    /**
-     * 智能匹配注释对应的行号
-     * 优先通过代码内容匹配，行号作为辅助
-     */
-    private findMatchingLine(document: vscode.TextDocument, comment: LocalComment): number {
-        const lineContent = comment.lineContent?.trim();
-        
-        // 如果没有保存的行内容（旧版本数据），严格隐藏注释
-        // 不再提供兼容性支持，避免注释显示在错误的位置
-        if (!lineContent || lineContent.length === 0) {
-            console.warn(`⚠️ 注释 ${comment.id} 缺少代码内容快照，将被隐藏`);
-            return -1; // 严格隐藏，不提供兼容性
-        }
-
-        // 1. 优先在原始行号位置查找匹配
-        if (comment.line >= 0 && comment.line < document.lineCount) {
-            const currentLineContent = document.lineAt(comment.line).text.trim();
-            if (currentLineContent === lineContent) {
-                return comment.line;
-            }
-        }
-
-        // 2. 在原始行号附近的小范围内查找（±5行）
-        const searchRange = 5;
-        const startLine = Math.max(0, comment.line - searchRange);
-        const endLine = Math.min(document.lineCount - 1, comment.line + searchRange);
-
-        for (let i = startLine; i <= endLine; i++) {
-            if (i !== comment.line) { // 跳过已经检查过的原始行号
-                const currentLineContent = document.lineAt(i).text.trim();
-                if (currentLineContent === lineContent) {
-                    return i;
-                }
-            }
-        }
-
-        // 3. 在整个文档中查找精确匹配
-        for (let i = 0; i < document.lineCount; i++) {
-            if (i >= startLine && i <= endLine) {
-                continue; // 跳过已经搜索过的范围
-            }
-            const currentLineContent = document.lineAt(i).text.trim();
-            if (currentLineContent === lineContent) {
-                return i;
-            }
-        }
-
-        // 4. 使用模糊匹配（去除空格和标点符号的影响）
-        const normalizedTarget = this.normalizeLineContent(lineContent);
-        if (normalizedTarget && normalizedTarget.length > 0) {
-            for (let i = 0; i < document.lineCount; i++) {
-                const currentLineContent = document.lineAt(i).text.trim();
-                const normalizedCurrent = this.normalizeLineContent(currentLineContent);
-                if (normalizedCurrent && normalizedCurrent === normalizedTarget && normalizedCurrent.length > 0) {
-                    return i;
-                }
-            }
-        }
-
-        // 5. 找不到匹配的内容，严格隐藏注释
-        // 只在调试时显示详细信息
-        return -1;
-    }
-
-    /**
-     * 标准化行内容，用于模糊匹配
-     * 移除空格、制表符和一些常见的标点符号
-     */
-    private normalizeLineContent(content: string): string {
-        const normalized = content
-            .replace(/\s+/g, '') // 移除所有空白字符
-            .replace(/[;,{}()]/g, '') // 移除常见标点符号
-            .toLowerCase(); // 转为小写
-        
-        // 避免过于短的内容造成误匹配
-        // 标准化后的内容至少要有3个字符才考虑模糊匹配
-        return normalized.length >= 3 ? normalized : '';
     }
 
     public async handleDocumentChange(event: vscode.TextDocumentChangeEvent, hasRecentKeyboardActivity: boolean = true): Promise<void> {
@@ -517,7 +448,7 @@ export class CommentManager {
             
             for (const comment of fileComments) {
                 // 首先进行智能匹配，看注释是否找到了正确的位置
-                const matchedLine = this.findMatchingLine(document, comment);
+                const matchedLine = this.commentMatcher.findMatchingLine(document, comment);
                 
                 if (matchedLine !== -1) {
                     // 注释找到了匹配位置，检查是否需要更新代码快照
@@ -553,7 +484,7 @@ export class CommentManager {
                                 currentLineContent !== (comment.lineContent || '').trim()) {
                                 
                                 // 使用相似度检查，如果修改不是太大，认为是同一行的修改
-                                const similarity = this.calculateSimilarity(currentLineContent, comment.lineContent || '');
+                                const similarity = this.commentMatcher.calculateSimilarity(currentLineContent, comment.lineContent || '');
                                 if (similarity > 0.4) { // 相似度超过40%认为是同一行的修改
                                     comment.lineContent = currentLineContent;
                                     fileUpdates++;
@@ -581,48 +512,6 @@ export class CommentManager {
             await this.saveComments();
             console.log(`✅ 智能更新完成，共更新 ${totalUpdates} 个注释`);
         }
-    }
-
-    /**
-     * 计算两个字符串的相似度
-     */
-    private calculateSimilarity(str1: string, str2: string): number {
-        if (!str1 || !str2) return 0;
-        
-        // 简单的编辑距离算法
-        const len1 = str1.length;
-        const len2 = str2.length;
-        
-        if (len1 === 0) return len2 === 0 ? 1 : 0;
-        if (len2 === 0) return 0;
-        
-        const matrix: number[][] = [];
-        
-        for (let i = 0; i <= len1; i++) {
-            matrix[i] = [i];
-        }
-        
-        for (let j = 0; j <= len2; j++) {
-            matrix[0][j] = j;
-        }
-        
-        for (let i = 1; i <= len1; i++) {
-            for (let j = 1; j <= len2; j++) {
-                if (str1.charAt(i - 1) === str2.charAt(j - 1)) {
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                } else {
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j - 1] + 1, // 替换
-                        matrix[i][j - 1] + 1,     // 插入
-                        matrix[i - 1][j] + 1      // 删除
-                    );
-                }
-            }
-        }
-        
-        const distance = matrix[len1][len2];
-        const maxLen = Math.max(len1, len2);
-        return (maxLen - distance) / maxLen;
     }
 
     private generateId(): string {

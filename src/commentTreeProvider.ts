@@ -68,28 +68,42 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
 
         for (const comment of comments) {
             const label = `第${comment.line + 1}行: ${comment.content}`;
+            // 直接使用isMatched字段，如果未定义则默认为可匹配
+            const isMatchable = comment.isMatched !== false;
+            
             const commentNode = new CommentTreeItem(
                 label,
                 vscode.TreeItemCollapsibleState.None,
-                'comment'
+                isMatchable ? 'comment' : 'hidden-comment'
             );
             
             commentNode.filePath = filePath;
             commentNode.comment = comment;
-            commentNode.tooltip = `${comment.content}\n添加时间: ${new Date(comment.timestamp).toLocaleString()}`;
-            commentNode.iconPath = new vscode.ThemeIcon('comment');
+            
+            // 创建Markdown格式的tooltip
+            const markdownTooltip = new vscode.MarkdownString();
+            markdownTooltip.appendMarkdown(comment.content);
+            
+            if (!isMatchable) {
+                // 添加隐藏状态的提示
+                markdownTooltip.appendMarkdown('\n\n*注释当前无法匹配到代码，已被隐藏*');
+                // 使用暗色主题图标
+                commentNode.iconPath = new vscode.ThemeIcon('comment-unresolved');
+                // 应用特殊CSS类
+                commentNode.resourceUri = vscode.Uri.parse(`hidden-comment:${comment.id}`);
+            } else {
+                commentNode.iconPath = new vscode.ThemeIcon('comment');
+            }
+            
+            commentNode.tooltip = markdownTooltip;
             
             // 添加命令，点击时跳转到对应位置
+            // 即使是隐藏注释也可以尝试跳转，用户可能想手动查找
             commentNode.command = {
                 command: 'localComment.goToComment',
                 title: '跳转到注释',
                 arguments: [filePath, comment.line]
             };
-
-            // 创建Markdown格式的tooltip
-            const markdownTooltip = new vscode.MarkdownString();
-            markdownTooltip.appendMarkdown(comment.content);
-            commentNode.tooltip = markdownTooltip;
 
             commentNodes.push(commentNode);
         }
