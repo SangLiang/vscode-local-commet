@@ -350,7 +350,53 @@ export class CommentManager {
         // 检查是否有直接编辑注释所在行的情况
         let hasDirectLineEdit = false;
         let directUpdates = 0;
-
+        
+        // 检查是否有可能影响行号的操作（添加行或删除行）
+        let hasLineNumberChanges = false;
+        
+        // 先检查是否有影响行号的变更
+        for (const change of event.contentChanges) {
+            // 检查是否有添加或删除行的操作
+            const hasLineBreaks = change.text.includes('\n'); // 添加行的特征
+            const spanMultipleLines = change.range.end.line > change.range.start.line; // 跨多行的特征
+            
+            if (hasLineBreaks || spanMultipleLines) {
+                hasLineNumberChanges = true;
+                console.log(`⚠️ 检测到可能影响行号的操作: ${spanMultipleLines ? '删除多行' : '添加行'}`);
+                break;
+            }
+        }
+        
+        // 如果有可能影响行号的操作，直接走智能匹配流程，不立即更新内容快照
+        if (hasLineNumberChanges) {
+            console.log(`⚠️ 检测到行号变化，跳过直接更新内容快照，进入智能匹配流程`);
+            
+            // 将文件标记为需要智能更新
+            this.pendingUpdates.add(filePath);
+            
+            // 记录键盘活动状态
+            this._hasKeyboardActivity = hasRecentKeyboardActivity;
+            
+            // 立即执行智能更新（缩短延迟时间）
+            if (this.updateTimer) {
+                clearTimeout(this.updateTimer);
+            }
+            
+            this.updateTimer = setTimeout(async () => {
+                console.log('🧠 检测到行号变化，立即开始智能更新...');
+                await this.performSmartUpdates();
+                this.updateTimer = null;
+                
+                // 智能更新完成后再触发注释重新渲染
+                setTimeout(() => {
+                    vscode.commands.executeCommand('localComment.refreshComments');
+                }, 10);
+            }, 100); // 缩短延迟以更快响应行号变化
+            
+            return; // 提前返回，避免走直接更新的逻辑
+        }
+        
+        // 如果没有行号变化，正常处理直接编辑
         for (const change of event.contentChanges) {
             const startLine = change.range.start.line;
             const endLine = change.range.end.line;

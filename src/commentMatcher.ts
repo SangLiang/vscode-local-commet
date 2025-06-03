@@ -27,13 +27,45 @@ export class CommentMatcher {
             }
         }
 
-        // 2. 在原始行号附近的小范围内查找（±5行）
-        const searchRange = 5;
+        // 1.5 优先检查注释行上面的行
+        // 这对于添加行后删除导致注释位置下移的情况特别有效
+        const previousLine = comment.line - 1;
+        if (previousLine >= 0 && previousLine < document.lineCount) {
+            const previousLineContent = document.lineAt(previousLine).text.trim();
+            if (previousLineContent === lineContent) {
+                console.log(`✅ 注释可能需要上移一行：从行 ${comment.line + 1} 到行 ${previousLine + 1}`);
+                return previousLine;
+            }
+        }
+
+        // 2. 计算动态搜索范围
+        // 基于文件大小动态调整搜索范围，文件越大，搜索范围越大
+        const calculateDynamicRange = (totalLines: number): number => {
+            // 基础搜索范围
+            let baseRange = 5; // 对于小文件默认为5行
+            
+            if (totalLines <= 100) {
+                return baseRange; // 小文件使用默认范围
+            } else if (totalLines <= 500) {
+                // 中等大小文件：线性增长 (5-15行)
+                return Math.floor(5 + (totalLines - 100) / 50);
+            } else if (totalLines <= 2000) {
+                // 大文件：更快的增长 (15-50行)
+                return Math.floor(15 + (totalLines - 500) / 50);
+            } else {
+                // 超大文件：最大搜索范围 (50-100行)
+                return Math.min(50 + Math.floor(totalLines / 100), 100);
+            }
+        };
+        
+        const searchRange = calculateDynamicRange(document.lineCount);
+        console.log(`🔍 使用动态搜索范围: ±${searchRange} 行 (文件总行数: ${document.lineCount}行)`);
+        
         const startLine = Math.max(0, comment.line - searchRange);
         const endLine = Math.min(document.lineCount - 1, comment.line + searchRange);
 
         for (let i = startLine; i <= endLine; i++) {
-            if (i !== comment.line) { // 跳过已经检查过的原始行号
+            if (i !== comment.line && i !== previousLine) { // 跳过已经检查过的行
                 const currentLineContent = document.lineAt(i).text.trim();
                 if (currentLineContent === lineContent) {
                     return i;
