@@ -49,85 +49,85 @@
     "commands": [
       {
         "command": "localComment.addComment",
-        "title": "Add Local Comment",
+        "title": "%addComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.addMarkdownComment",
-        "title": "Add Markdown Local Comment",
+        "title": "%addMarkdownComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.convertSelectionToComment",
-        "title": "转换为本地注释",
+        "title": "%convertSelectionToComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.editComment",
-        "title": "Edit Local Comment",
+        "title": "%editComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.editCommentInPlace",
-        "title": "Edit Comment In Place",
+        "title": "%editCommentInPlace%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.editCommentFromHover",
-        "title": "Edit Comment from Hover",
+        "title": "%editCommentFromHover%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.removeComment",
-        "title": "Remove Local Comment",
+        "title": "%removeComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.toggleComments",
-        "title": "Toggle Comments Display",
+        "title": "%toggleComments%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.goToComment",
-        "title": "Go to Comment",
+        "title": "%goToComment%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.goToTagDeclaration",
-        "title": "Go to Tag Declaration",
+        "title": "%goToTagDeclaration%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.refreshTree",
-        "title": "Refresh",
+        "title": "%refreshTree%",
         "icon": "$(refresh)",
         "category": "Local Comment"
       },
       {
         "command": "localComment.deleteCommentFromTree",
-        "title": "Delete Comment",
+        "title": "%deleteCommentFromTree%",
         "icon": "$(trash)",
         "category": "Local Comment"
       },
       {
         "command": "localComment.editCommentFromTree",
-        "title": "Edit Comment",
+        "title": "%editCommentFromTree%",
         "icon": "$(edit)",
         "category": "Local Comment"
       },
       {
         "command": "localComment.showStorageLocation",
-        "title": "Show Storage Location",
+        "title": "%showStorageLocation%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.showStorageStats",
-        "title": "Show Comment Statistics",
+        "title": "%showStorageStats%",
         "category": "Local Comment"
       },
       {
         "command": "localComment.manageProjects",
-        "title": "Manage Project Comments",
+        "title": "%manageProjects%",
         "category": "Local Comment"
       }
     ],
@@ -135,7 +135,7 @@
       "explorer": [
         {
           "id": "localComments",
-          "name": "本地注释",
+          "name": "%treeViewTitle%",
           "when": "true"
         }
       ]

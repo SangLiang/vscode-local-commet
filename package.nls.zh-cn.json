@@ -1,0 +1,19 @@
+{
+  "addComment": "添加本地注释",
+  "addMarkdownComment": "添加Markdown本地注释",
+  "convertSelectionToComment": "转换为本地注释",
+  "editComment": "编辑本地注释",
+  "editCommentInPlace": "原位编辑注释",
+  "editCommentFromHover": "从悬停编辑注释",
+  "removeComment": "删除本地注释",
+  "toggleComments": "切换注释显示",
+  "goToComment": "跳转到注释",
+  "goToTagDeclaration": "跳转到标签声明",
+  "refreshTree": "刷新",
+  "deleteCommentFromTree": "删除注释",
+  "editCommentFromTree": "编辑注释",
+  "showStorageLocation": "显示存储位置",
+  "showStorageStats": "显示注释统计",
+  "manageProjects": "管理项目注释",
+  "treeViewTitle": "本地注释"
+} 

@@ -1,0 +1,19 @@
+{
+  "addComment": "Add Local Comment",
+  "addMarkdownComment": "Add Markdown Local Comment",
+  "convertSelectionToComment": "Convert to Local Comment",
+  "editComment": "Edit Local Comment",
+  "editCommentInPlace": "Edit Comment In Place",
+  "editCommentFromHover": "Edit Comment from Hover",
+  "removeComment": "Remove Local Comment",
+  "toggleComments": "Toggle Comments Display",
+  "goToComment": "Go to Comment",
+  "goToTagDeclaration": "Go to Tag Declaration",
+  "refreshTree": "Refresh",
+  "deleteCommentFromTree": "Delete Comment",
+  "editCommentFromTree": "Edit Comment",
+  "showStorageLocation": "Show Storage Location",
+  "showStorageStats": "Show Comment Statistics",
+  "manageProjects": "Manage Project Comments",
+  "treeViewTitle": "Local Comments"
+} 

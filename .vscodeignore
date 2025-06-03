@@ -47,4 +47,7 @@ Thumbs.db
 # 日志文件
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log* 
+yarn-error.log*
+
+# 排除 GIF 文件
+**/*.gif 
