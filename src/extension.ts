@@ -591,7 +591,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const deleteCommentFromTreeCommand = vscode.commands.registerCommand('localComment.deleteCommentFromTree', async (item) => {
-        if (item.contextValue === 'comment' && item.filePath && item.comment) {
+        if ((item.contextValue === 'comment' || item.contextValue === 'hidden-comment') && item.filePath && item.comment) {
             const uri = vscode.Uri.file(item.filePath);
             await commentManager.removeComment(uri, item.comment.line);
             tagManager.updateTags(commentManager.getAllComments());
@@ -601,7 +601,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const editCommentFromTreeCommand = vscode.commands.registerCommand('localComment.editCommentFromTree', async (item) => {
-        if (item.contextValue === 'comment' && item.filePath && item.comment) {
+        if ((item.contextValue === 'comment' || item.contextValue === 'hidden-comment') && item.filePath && item.comment) {
             // 获取上下文信息
             const fileName = item.filePath.split(/[/\\]/).pop() || '';
             const uri = vscode.Uri.file(item.filePath);
