@@ -202,6 +202,13 @@ npm run compile
 
 ### Version History
 
+## [1.0.7] - 2025-06-04
+
+###  🔨  Changed
+
+-  ✨  Added multiple languages for operation commands
+-  🔨  Fixed the issue of incorrect comment styles caused by switching branches in the comment tree
+
 ## [1.0.6] - 2025-06-02
 
 ###  🔨  Optimize comment tree
@@ -487,6 +494,13 @@ npm run compile
 ## 📝 更新日志
 
 ### 变更日志
+
+## [1.0.7] - 2025-06-04
+
+### 🔨 改动
+
+- ✨ 为操作命令添加了多语言
+- 🔨 修复了comment tree中，切换分支后导致的注释样式不正确的问题
 
 ## [1.0.6] - 2025-06-02
 
