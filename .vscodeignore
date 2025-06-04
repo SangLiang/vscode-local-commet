@@ -7,6 +7,7 @@
 .vscode/**
 .vscode-test/**
 src/**
+!src/templates/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md

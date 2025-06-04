@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地注释输入</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .context-info {
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        .context-title {
+            font-weight: bold;
+            color: var(--vscode-textPreformat-foreground);
+            margin-bottom: 8px;
+        }
+        .context-item {
+            margin: 4px 0;
+            display: flex;
+            align-items: flex-start;
+        }
+        .context-label {
+            color: var(--vscode-descriptionForeground);
+            min-width: 60px;
+            margin-right: 8px;
+        }
+        .context-value {
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-editor-font-family);
+            flex: 1;
+            word-break: break-all;
+        }
+        .code-preview {
+            background-color: var(--vscode-textCodeBlock-background);
+            border: 1px solid var(--vscode-textBlockQuote-border);
+            border-radius: 3px;
+            padding: 8px;
+            font-family: var(--vscode-editor-font-family);
+            font-size: var(--vscode-editor-font-size);
+            white-space: pre-wrap;
+            color: var(--vscode-textPreformat-foreground);
+        }
+        .header {
+            margin-bottom: 20px;
+        }
+        .prompt {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--vscode-textPreformat-foreground);
+        }
+        .help-text {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        .input-area {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .resize-hint {
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            max-height: 600px;
+            padding: 12px;
+            padding-bottom: 24px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            font-family: var(--vscode-editor-font-family);
+            font-size: var(--vscode-editor-font-size);
+            line-height: 1.5;
+            resize: both;
+            box-sizing: border-box;
+        }
+        textarea:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: var(--vscode-font-family);
+        }
+        .save-btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .save-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        .cancel-btn {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+        .cancel-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+        .autocomplete {
+            position: relative;
+        }
+        .autocomplete-dropdown {
+            position: absolute;
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            min-width: 150px;
+        }
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-family: var(--vscode-editor-font-family);
+            font-size: var(--vscode-editor-font-size);
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .autocomplete-item .tag-name {
+            color: var(--vscode-symbolIcon-functionForeground);
+            font-weight: bold;
+        }
+        .autocomplete-item .tag-description {
+            color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        ${contextHtml}
+        <div class="header">
+            <div class="prompt">${escapedPrompt}</div>
+            <div class="help-text">
+                💡 支持多行输入，换行符请使用 \n<br>
+                🏷️ 使用 $标签名 声明标签，使用 @标签名 引用标签<br>
+                ⌨️ 输入 @ 时会自动提示可用标签
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="autocomplete">
+                <textarea 
+                    id="contentInput" 
+                    placeholder="${escapedPlaceholder}"
+                    autofocus
+                >${escapedContent}</textarea>
+                <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+            </div>
+            <div class="resize-hint">↘ 可拖拽调整大小</div>
+        </div>
+        
+        <div class="button-group">
+            <button class="cancel-btn" onclick="cancel()">取消</button>
+            <button class="save-btn" onclick="save()">保存</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const vscode = acquireVsCodeApi();
+            const textarea = document.getElementById('contentInput');
+            
+            // 标签自动补全
+            const tagSuggestions = '${tagSuggestions}'.split(',').filter(tag => tag.length > 0);
+            
+            // 全局函数定义
+            window.save = function() {
+                const content = textarea.value;
+                vscode.postMessage({
+                    command: 'save',
+                    content: content
+                });
+            };
+            
+            window.cancel = function() {
+                vscode.postMessage({
+                    command: 'cancel'
+                });
+            };
+            
+            // 自动补全功能
+            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+            let selectedIndex = -1;
+            let filteredTags = [];
+            let autocompleteVisible = false;
+            
+            function showAutocomplete(tags, cursorPos) {
+                if (tags.length === 0) {
+                    hideAutocomplete();
+                    return;
+                }
+                
+                filteredTags = tags;
+                selectedIndex = 0;
+                autocompleteVisible = true;
+                
+                // 清空下拉列表
+                autocompleteDropdown.innerHTML = '';
+                
+                // 添加选项
+                tags.forEach((tag, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item' + (index === 0 ? ' selected' : '');
+                    item.innerHTML = '<span class="tag-name">@' + tag + '</span><span class="tag-description">标签引用</span>';
+                    item.addEventListener('click', () => {
+                        insertTag(tag);
+                    });
+                    autocompleteDropdown.appendChild(item);
+                });
+                
+                // 计算光标位置
+                const position = getCaretPixelPosition(textarea, cursorPos);
+                
+                // 设置下拉框位置（相对于textarea）
+                autocompleteDropdown.style.left = position.left + 'px';
+                autocompleteDropdown.style.top = (position.top + position.height + 2) + 'px';
+                autocompleteDropdown.style.display = 'block';
+                
+                // 确保下拉框不超出容器边界
+                adjustDropdownPosition();
+            }
+            
+            /**
+             * 获取光标在textarea中的像素位置
+             */
+            function getCaretPixelPosition(textarea, caretPos) {
+                // 创建一个隐藏的div，模拟textarea的样式
+                const div = document.createElement('div');
+                const style = window.getComputedStyle(textarea);
+                
+                // 复制textarea的样式到div
+                div.style.position = 'absolute';
+                div.style.visibility = 'hidden';
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.wordWrap = 'break-word';
+                div.style.top = '0px';
+                div.style.left = '0px';
+                
+                // 复制重要的样式属性
+                [
+                    'fontFamily', 'fontSize', 'fontWeight', 'lineHeight',
+                    'paddingTop', 'paddingLeft', 'paddingRight', 'paddingBottom',
+                    'borderTopWidth', 'borderLeftWidth', 'borderRightWidth', 'borderBottomWidth',
+                    'width', 'height'
+                ].forEach(prop => {
+                    div.style[prop] = style[prop];
+                });
+                
+                document.body.appendChild(div);
+                
+                // 设置文本内容到光标位置
+                const textBeforeCaret = textarea.value.substring(0, caretPos);
+                div.textContent = textBeforeCaret;
+                
+                // 创建一个span来标记光标位置
+                const span = document.createElement('span');
+                span.textContent = '|'; // 光标占位符
+                div.appendChild(span);
+                
+                // 获取span的位置（即光标位置）
+                const spanRect = span.getBoundingClientRect();
+                const textareaRect = textarea.getBoundingClientRect();
+                
+                // 计算相对于textarea的位置
+                const left = spanRect.left - textareaRect.left;
+                const top = spanRect.top - textareaRect.top;
+                const height = spanRect.height;
+                
+                // 清理
+                document.body.removeChild(div);
+                
+                return {
+                    left: Math.max(0, left),
+                    top: Math.max(0, top),
+                    height: height
+                };
+            }
+            
+            /**
+             * 调整下拉框位置，确保不超出容器边界
+             */
+            function adjustDropdownPosition() {
+                const dropdown = autocompleteDropdown;
+                const container = textarea.parentElement;
+                const containerRect = container.getBoundingClientRect();
+                const dropdownRect = dropdown.getBoundingClientRect();
+                
+                // 如果下拉框超出右边界，向左调整
+                if (dropdownRect.right > containerRect.right) {
+                    const overflow = dropdownRect.right - containerRect.right;
+                    const currentLeft = parseInt(dropdown.style.left);
+                    dropdown.style.left = Math.max(0, currentLeft - overflow - 10) + 'px';
+                }
+                
+                // 如果下拉框超出底部边界，显示在光标上方
+                if (dropdownRect.bottom > containerRect.bottom) {
+                    const currentTop = parseInt(dropdown.style.top);
+                    const dropdownHeight = dropdownRect.height;
+                    dropdown.style.top = (currentTop - dropdownHeight - 25) + 'px'; // 25是行高的估算
+                }
+            }
+            
+            function hideAutocomplete() {
+                autocompleteVisible = false;
+                autocompleteDropdown.style.display = 'none';
+                selectedIndex = -1;
+                filteredTags = [];
+            }
+            
+            function updateSelection(direction) {
+                if (!autocompleteVisible || filteredTags.length === 0) return;
+                
+                // 移除当前选中状态
+                const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+                if (items[selectedIndex]) {
+                    items[selectedIndex].classList.remove('selected');
+                }
+                
+                // 更新选中索引
+                selectedIndex += direction;
+                if (selectedIndex < 0) selectedIndex = filteredTags.length - 1;
+                if (selectedIndex >= filteredTags.length) selectedIndex = 0;
+                
+                // 添加新的选中状态
+                if (items[selectedIndex]) {
+                    items[selectedIndex].classList.add('selected');
+                    items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                }
+            }
+            
+            function insertTag(tag) {
+                const cursorPos = textarea.selectionStart;
+                const text = textarea.value;
+                
+                // 找到@的位置
+                const beforeCursor = text.substring(0, cursorPos);
+                const atIndex = beforeCursor.lastIndexOf('@');
+                
+                if (atIndex !== -1) {
+                    // 替换@后的内容
+                    const beforeAt = text.substring(0, atIndex);
+                    const afterCursor = text.substring(cursorPos);
+                    const newText = beforeAt + '@' + tag + ' ' + afterCursor;
+                    
+                    textarea.value = newText;
+                    const newCursorPos = atIndex + tag.length + 2; // @tag + 空格
+                    textarea.setSelectionRange(newCursorPos, newCursorPos);
+                    textarea.focus();
+                }
+                
+                hideAutocomplete();
+            }
+            
+            textarea.addEventListener('input', function(e) {
+                const cursorPos = e.target.selectionStart;
+                const text = e.target.value;
+                const beforeCursor = text.substring(0, cursorPos);
+                
+                // 检查是否刚输入了@
+                const atMatch = beforeCursor.match(/@([a-zA-Z0-9_]*)$/);
+                if (atMatch && tagSuggestions.length > 0) {
+                    const searchTerm = atMatch[1].toLowerCase();
+                    const availableTags = tagSuggestions.filter(tag => 
+                        tag.startsWith('@') && 
+                        tag.slice(1).toLowerCase().includes(searchTerm)
+                    ).map(tag => tag.slice(1)); // 移除@前缀
+                    
+                    if (availableTags.length > 0) {
+                        showAutocomplete(availableTags, cursorPos);
+                    } else {
+                        hideAutocomplete();
+                    }
+                } else {
+                    hideAutocomplete();
+                }
+            });
+            
+            // 处理键盘导航
+            textarea.addEventListener('keydown', function(e) {
+                if (autocompleteVisible) {
+                    switch (e.key) {
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            updateSelection(1);
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            updateSelection(-1);
+                            break;
+                        case 'Enter':
+                        case 'Tab':
+                            e.preventDefault();
+                            if (selectedIndex >= 0 && filteredTags[selectedIndex]) {
+                                insertTag(filteredTags[selectedIndex]);
+                            }
+                            break;
+                        case 'Escape':
+                            e.preventDefault();
+                            hideAutocomplete();
+                            break;
+                    }
+                }
+            });
+            
+            // 点击其他地方时隐藏自动补全
+            document.addEventListener('click', function(e) {
+                if (!autocompleteDropdown.contains(e.target) && e.target !== textarea) {
+                    hideAutocomplete();
+                }
+            });
+            
+            // 全局快捷键支持
+            document.addEventListener('keydown', function(e) {
+                if (!autocompleteVisible) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        e.preventDefault();
+                        window.save();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        window.cancel();
+                    }
+                }
+            });
+            
+            // 设置焦点
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        })();
+    </script>
+</body>
+</html> 
