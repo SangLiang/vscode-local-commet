@@ -170,6 +170,94 @@
             font-size: 12px;
             margin-left: 8px;
         }
+        .preview-btn {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            margin-bottom: 10px;
+        }
+        .preview-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+        .preview-btn.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .preview-area {
+            display: none;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 10px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            min-height: 100px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .preview-area.show {
+            display: block;
+            margin-bottom: 10px;
+        }
+        /* Markdown 预览样式 */
+        .preview-area h1,
+        .preview-area h2,
+        .preview-area h3,
+        .preview-area h4,
+        .preview-area h5,
+        .preview-area h6 {
+            color: var(--vscode-foreground);
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+        .preview-area p {
+            margin: 8px 0;
+        }
+        .preview-area code {
+            background-color: var(--vscode-textCodeBlock-background);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: var(--vscode-editor-font-family);
+        }
+        .preview-area pre {
+            background-color: var(--vscode-textCodeBlock-background);
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .preview-area blockquote {
+            border-left: 4px solid var(--vscode-textBlockQuote-border);
+            margin: 8px 0;
+            padding-left: 12px;
+            color: var(--vscode-textBlockQuote-foreground);
+        }
+        .preview-area ul,
+        .preview-area ol {
+            padding-left: 24px;
+        }
+        .preview-area a {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+        }
+        .preview-area a:hover {
+            text-decoration: underline;
+        }
+        .preview-area img {
+            max-width: 100%;
+            height: auto;
+        }
+        .preview-area table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 8px 0;
+        }
+        .preview-area th,
+        .preview-area td {
+            border: 1px solid var(--vscode-panel-border);
+            padding: 6px 12px;
+        }
+        .preview-area th {
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+        }
     </style>
 </head>
 <body>
@@ -196,16 +284,96 @@
             <div class="resize-hint">↘ 可拖拽调整大小</div>
         </div>
         
+        <button id="previewBtn" class="preview-btn" onclick="togglePreview()">预览 Markdown</button>
+        <div id="previewArea" class="preview-area"></div>
+
         <div class="button-group">
             <button class="cancel-btn" onclick="cancel()">取消</button>
             <button class="save-btn" onclick="save()">保存</button>
         </div>
     </div>
 
+    <script src="${markedJsUri}" onerror="console.error('marked.js 加载失败')"></script>
     <script>
         (function() {
             const vscode = acquireVsCodeApi();
             const textarea = document.getElementById('contentInput');
+            const previewBtn = document.getElementById('previewBtn');
+            const previewArea = document.getElementById('previewArea');
+            let previewVisible = false;
+            
+            // 初始化marked
+            let markedInitialized = false;
+            
+            function initializeMarked() {
+                if (typeof marked !== 'undefined' && !markedInitialized) {
+                    marked.setOptions({
+                        breaks: true,
+                        gfm: true,
+                        sanitize: false
+                    });
+                    markedInitialized = true;
+                    return true;
+                }
+                return false;
+            }
+
+            // 等待marked库加载完成
+            function waitForMarked() {
+                return new Promise((resolve) => {
+                    const checkMarked = () => {
+                        if (initializeMarked()) {
+                            resolve();
+                        } else {
+                            setTimeout(checkMarked, 100);
+                        }
+                    };
+                    checkMarked();
+                });
+            }
+
+            // 更新预览内容
+            async function updatePreview(content) {
+                try {
+                    if (!content) {
+                        previewArea.innerHTML = '<p>没有内容可预览</p>';
+                        return;
+                    }
+                    
+                    // 将@标签转换为高亮样式
+                    const highlightedContent = content.replace(/@([a-zA-Z0-9_]+)/g, '<span style="color: var(--vscode-symbolIcon-functionForeground); font-weight: bold;">@$1</span>');
+                    
+                    // 确保marked已经加载并初始化
+                    if (!markedInitialized) {
+                        await waitForMarked();
+                    }
+                    
+                    if (typeof marked === 'undefined') {
+                        console.error('marked库未加载');
+                        previewArea.innerHTML = '<p>正在加载预览功能...</p>';
+                        return;
+                    }
+                    
+                    // 转换Markdown为HTML
+                    const htmlContent = marked.parse(highlightedContent);
+                    previewArea.innerHTML = htmlContent || '<p>没有内容可预览</p>';
+                } catch (error) {
+                    console.error('预览更新失败:', error);
+                    previewArea.innerHTML = '<p>预览生成失败，请重试</p>';
+                }
+            }
+
+            // 预览功能
+            window.togglePreview = async function() {
+                previewVisible = !previewVisible;
+                previewBtn.classList.toggle('active');
+                previewArea.classList.toggle('show');
+                
+                if (previewVisible) {
+                    const content = textarea.value;
+                    await updatePreview(content);
+                }
+            };
             
             // 标签自动补全
             const tagSuggestions = '${tagSuggestions}'.split(',').filter(tag => tag.length > 0);
@@ -399,6 +567,11 @@
             }
             
             textarea.addEventListener('input', function(e) {
+                if (previewVisible) {
+                    const content = e.target.value;
+                    updatePreview(content);
+                }
+                
                 const cursorPos = e.target.selectionStart;
                 const text = e.target.value;
                 const beforeCursor = text.substring(0, cursorPos);

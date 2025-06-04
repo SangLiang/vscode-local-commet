@@ -65,6 +65,29 @@ export function activate(context: vscode.ExtensionContext) {
         showCollapseAll: true
     });
 
+    // 初始化时等待编辑器准备就绪
+    if (vscode.window.activeTextEditor) {
+        // 如果已经有活动的编辑器，立即刷新
+        commentProvider.refresh();
+        commentTreeProvider.refresh();
+    }
+
+    // 监听编辑器变化
+    const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (editor) {
+            // 编辑器切换时刷新
+            commentProvider.refresh();
+            commentTreeProvider.refresh();
+        }
+    });
+
+    // 监听文档打开
+    const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument(() => {
+        // 文档打开时刷新
+        commentProvider.refresh();
+        commentTreeProvider.refresh();
+    });
+
     // 注册命令
     const addCommentCommand = vscode.commands.registerCommand('localComment.addComment', async () => {
         const editor = vscode.window.activeTextEditor;
@@ -117,6 +140,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (existingComment) {
                 // 如果有现有注释，进入编辑模式
                 const newContent = await showWebViewInput(
+                    context,
                     '编辑多行本地注释',
                     '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
                     existingComment.content,
@@ -138,6 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                 // 如果没有现有注释，添加新注释
                 const content = await showWebViewInput(
+                    context,
                     '添加多行本地注释',
                     '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
                     '',
@@ -239,6 +264,7 @@ export function activate(context: vscode.ExtensionContext) {
             const lineContent = comment.lineContent || document.lineAt(comment.line).text;
 
             const newContent = await showWebViewInput(
+                context,
                 '修改注释内容',
                 '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
                 comment.content,
@@ -371,6 +397,7 @@ export function activate(context: vscode.ExtensionContext) {
             
             // 使用新的WebView输入界面
             const newContent = await showWebViewInput(
+                context,
                 '编辑本地注释',
                 '请修改注释内容...',
                 comment.content,
@@ -610,6 +637,7 @@ export function activate(context: vscode.ExtensionContext) {
             const lineContent = item.comment.lineContent || document.lineAt(item.comment.line).text;
             
             const newContent = await showWebViewInput(
+                context,
                 '修改注释内容',
                 '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
                 item.comment.content,
@@ -809,11 +837,6 @@ export function activate(context: vscode.ExtensionContext) {
         commentTreeProvider.refresh();
     });
 
-    // 监听活动编辑器变化
-    const onDidChangeActiveTextEditor = vscode.window.onDidChangeActiveTextEditor(() => {
-        commentProvider.refresh();
-    });
-
     // 添加键盘事件监听
     const onDidChangeTextEditorSelection = vscode.window.onDidChangeTextEditorSelection(() => {
         // 更新最后一次键盘活动时间
@@ -981,6 +1004,7 @@ async function showQuickInputWithTagCompletion(
 
 // 在文件末尾添加WebView多行输入函数
 async function showWebViewInput(
+    context: vscode.ExtensionContext,
     prompt: string, 
     placeholder: string = '', 
     existingContent: string = '',
@@ -989,7 +1013,8 @@ async function showWebViewInput(
         lineNumber?: number;
         lineContent?: string;
         selectedText?: string;
-    }
+    },
+    markedJsUri: string = ''
 ): Promise<string | undefined> {
     // 保存当前活动编辑器的引用，以便稍后恢复焦点
     const activeEditor = vscode.window.activeTextEditor;
@@ -1002,16 +1027,21 @@ async function showWebViewInput(
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                retainContextWhenHidden: false
+                retainContextWhenHidden: false,
+                localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'src')]
             }
         );
+
+        // 获取marked.js的本地路径
+        const markedJsPath = vscode.Uri.joinPath(context.extensionUri, 'src', 'lib', 'marked.min.js');
+        const markedJsUri = panel.webview.asWebviewUri(markedJsPath);
 
         // 修复：使用正确的方法名获取标签
         const allTags = tagManager.getAvailableTagNames();
         const tagSuggestions = allTags.map(tag => `@${tag}`).join(',');
 
         // HTML内容
-        panel.webview.html = getWebviewContent(prompt, placeholder, existingContent, tagSuggestions, contextInfo);
+        panel.webview.html = getWebviewContent(prompt, placeholder, existingContent, tagSuggestions, contextInfo, markedJsUri.toString());
 
         // 处理WebView消息
         panel.webview.onDidReceiveMessage(
@@ -1052,12 +1082,20 @@ function restoreFocus(editor: vscode.TextEditor | undefined) {
         });
     }
 }
-function getWebviewContent(prompt: string, placeholder: string, existingContent: string, tagSuggestions: string, contextInfo?: {
-    fileName?: string;
-    lineNumber?: number;
-    lineContent?: string;
-    selectedText?: string;
-}): string {
+
+function getWebviewContent(
+    prompt: string,
+    placeholder: string,
+    existingContent: string,
+    tagSuggestions: string,
+    contextInfo?: {
+        fileName?: string;
+        lineNumber?: number;
+        lineContent?: string;
+        selectedText?: string;
+    },
+    markedJsUri: string = ''
+): string {
     // HTML转义函数
     const escapeHtml = (text: string): string => {
         return text
@@ -1112,8 +1150,9 @@ function getWebviewContent(prompt: string, placeholder: string, existingContent:
         contextHtml,
         escapedPrompt: escapeHtml(prompt),
         escapedPlaceholder: escapeHtml(placeholder),
-        escapedContent: escapeHtml(existingContent),
-        tagSuggestions
+        escapedContent: escapeHtml(existingContent || ''),
+        tagSuggestions,
+        markedJsUri: markedJsUri || ''
     };
 
     // 读取模板文件
@@ -1122,7 +1161,7 @@ function getWebviewContent(prompt: string, placeholder: string, existingContent:
 
     // 使用正则表达式一次性替换所有变量
     template = template.replace(/\${(\w+)}/g, (match, key: string) => {
-        return templateVariables[key] || match;
+        return templateVariables[key] || '';
     });
 
     return template;
