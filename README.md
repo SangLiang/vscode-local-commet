@@ -206,6 +206,7 @@ npm run compile
 
 ###  🔨  Changed
 
+-  ✨  Added preview for markdwon editing
 -  ✨  Added multiple languages for operation commands
 -  🔨  Fixed the issue of incorrect comment styles caused by switching branches in the comment tree
 
@@ -499,6 +500,7 @@ npm run compile
 
 ### 🔨 改动
 
+- ✨ 添加了markdwon编辑的预览功能
 - ✨ 为操作命令添加了多语言
 - 🔨 修复了comment tree中，切换分支后导致的注释样式不正确的问题
 
