@@ -280,6 +280,21 @@ export class CommentManager {
         vscode.window.showInformationMessage(`已删除第 ${commentToRemove.line + 1} 行的本地注释`);
     }
 
+    /**
+     * 获取指定文件中所有可以匹配到代码的注释
+     * 
+     * 该方法会重新扫描文件内容，重新计算每个注释的匹配状态。
+     * 与getAllComments不同，这个方法只返回当前能够匹配到代码的注释。
+     * 用于确保注释树视图(CommentTreeView)能正确显示注释的匹配状态。
+     * 
+     * @param uri - VSCode的Uri对象，指向要获取注释的文件
+     * @returns 返回文件中所有能够匹配到代码的注释数组
+     * 
+     * @example
+     * const uri = vscode.Uri.file(filePath);
+     * const matchedComments = commentManager.getComments(uri);
+     * // matchedComments只包含能够匹配到当前代码的注释
+     */
     public getComments(uri: vscode.Uri): LocalComment[] {
         const filePath = uri.fsPath;
         const fileComments = this.comments[filePath] || [];

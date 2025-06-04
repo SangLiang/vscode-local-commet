@@ -60,16 +60,26 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
     }
 
     private getCommentNodes(filePath: string): CommentTreeItem[] {
-        const comments = this.commentManager.getAllComments()[filePath] || [];
+        // 使用getComments方法获取最新的注释状态
+        const uri = vscode.Uri.file(filePath);
+        const matchedComments = this.commentManager.getComments(uri);
         const commentNodes: CommentTreeItem[] = [];
 
-        // 按行号排序
-        comments.sort((a, b) => a.line - b.line);
+        // 获取所有注释（包括未匹配的）
+        const allComments = this.commentManager.getAllComments()[filePath] || [];
 
-        for (const comment of comments) {
-            const label = `第${comment.line + 1}行: ${comment.content}`;
-            // 直接使用isMatched字段，如果未定义则默认为可匹配
-            const isMatchable = comment.isMatched !== false;
+        // 创建匹配注释的Map，提高查找效率
+        const matchedCommentsMap = new Map(
+            matchedComments.map(comment => [comment.id, comment])
+        );
+
+        // 处理所有注释，包括未匹配的
+        for (const comment of allComments) {
+            // 使用Map快速查找匹配的注释
+            const matchedComment = matchedCommentsMap.get(comment.id);
+            const isMatchable = matchedComment !== undefined;
+            
+            const label = `第${(matchedComment?.line || comment.line) + 1}行: ${comment.content}`;
             
             const commentNode = new CommentTreeItem(
                 label,
@@ -78,7 +88,7 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
             );
             
             commentNode.filePath = filePath;
-            commentNode.comment = comment;
+            commentNode.comment = matchedComment || comment;
             
             // 创建Markdown格式的tooltip
             const markdownTooltip = new vscode.MarkdownString();
@@ -102,13 +112,18 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
             commentNode.command = {
                 command: 'localComment.goToComment',
                 title: '跳转到注释',
-                arguments: [filePath, comment.line]
+                arguments: [filePath, matchedComment?.line || comment.line]
             };
 
             commentNodes.push(commentNode);
         }
 
-        return commentNodes;
+        // 按行号排序
+        return commentNodes.sort((a, b) => {
+            const lineA = a.comment?.line ?? Number.MAX_SAFE_INTEGER;
+            const lineB = b.comment?.line ?? Number.MAX_SAFE_INTEGER;
+            return lineA - lineB;
+        });
     }
 }
 
