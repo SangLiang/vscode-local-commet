@@ -9,6 +9,7 @@ yarn.lock
 out/
 dist/
 build/
+!src/lib/marked.min.js
 *.js
 *.js.map
 *.d.ts
