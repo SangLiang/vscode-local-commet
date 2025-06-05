@@ -65,7 +65,8 @@
       {
         "command": "localComment.editComment",
         "title": "%editComment%",
-        "category": "Local Comment"
+        "category": "Local Comment",
+        "enablement": "false"
       },
       {
         "command": "localComment.editCommentInPlace",
@@ -75,7 +76,8 @@
       {
         "command": "localComment.editCommentFromHover",
         "title": "%editCommentFromHover%",
-        "category": "Local Comment"
+        "category": "Local Comment",
+        "enablement": "false"
       },
       {
         "command": "localComment.removeComment",
@@ -90,12 +92,14 @@
       {
         "command": "localComment.goToComment",
         "title": "%goToComment%",
-        "category": "Local Comment"
+        "category": "Local Comment",
+         "enablement": "false"
       },
       {
         "command": "localComment.goToTagDeclaration",
         "title": "%goToTagDeclaration%",
-        "category": "Local Comment"
+        "category": "Local Comment",
+         "enablement": "false"
       },
       {
         "command": "localComment.refreshTree",
@@ -113,7 +117,8 @@
         "command": "localComment.editCommentFromTree",
         "title": "%editCommentFromTree%",
         "icon": "$(edit)",
-        "category": "Local Comment"
+        "category": "Local Comment",
+        "enablement": "false"
       },
       {
         "command": "localComment.showStorageLocation",
