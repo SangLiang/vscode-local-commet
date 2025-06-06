@@ -261,7 +261,6 @@ export class CommentManager {
             return;
         }
 
-        const initialLength = this.comments[filePath].length;
         const commentToRemove = this.comments[filePath].find(c => c.id === commentId);
         
         if (!commentToRemove) {

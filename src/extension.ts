@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { CommentManager } from './commentManager';
-import { CommentProvider } from './commentProvider';
-import { CommentTreeProvider } from './commentTreeProvider';
+import { CommentProvider } from './providers/commentProvider';
+import { CommentTreeProvider } from './providers/commentTreeProvider';
 import { TagManager } from './tagManager';
-import { TagCompletionProvider } from './tagCompletionProvider';
-import { TagDefinitionProvider } from './tagDefinitionProvider';
+import { TagCompletionProvider } from './providers/tagCompletionProvider';
+import { TagDefinitionProvider } from './providers/tagDefinitionProvider';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -879,6 +879,7 @@ export function activate(context: vscode.ExtensionContext) {
         onDidChangeActiveTextEditor,
         onDidChangeTextEditorSelection,
         onDidChangeTextEditorVisibleRanges,
+        onDidOpenTextDocument,
         commentProvider,
         treeView,
         completionDisposable,

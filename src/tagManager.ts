@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import { LocalComment } from './commentManager';
 
 export interface TagDeclaration {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CommentManager, LocalComment, FileComments } from './commentManager';
+import { CommentManager, LocalComment, FileComments } from '../commentManager';
 
 export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<CommentTreeItem | undefined | null | void> = new vscode.EventEmitter<CommentTreeItem | undefined | null | void>();

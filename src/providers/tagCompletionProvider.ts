@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { TagManager } from './tagManager';
-import { CommentManager } from './commentManager';
+import { TagManager } from '../tagManager';
+import { CommentManager } from '../commentManager';
 
 export class TagCompletionProvider implements vscode.CompletionItemProvider {
     constructor(
