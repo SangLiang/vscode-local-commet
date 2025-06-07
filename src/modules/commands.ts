@@ -5,7 +5,7 @@ import { CommentManager } from '../commentManager';
 import { TagManager } from '../tagManager';
 import { CommentProvider } from '../providers/commentProvider';
 import { CommentTreeProvider } from '../providers/commentTreeProvider';
-import { showWebViewInput } from '../webview';
+import { showWebViewInput } from './webview';
 import { showQuickInputWithTagCompletion } from '../quickInput';
 
 export function registerCommands(

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { TagManager } from '../tagManager';
+import { CommentManager } from '../commentManager';
 
 export async function showWebViewInput(
     context: vscode.ExtensionContext,
@@ -35,8 +37,14 @@ export async function showWebViewInput(
         const markedJsPath = vscode.Uri.joinPath(context.extensionUri, 'src', 'lib', 'marked.min.js');
         const markedJsUri = panel.webview.asWebviewUri(markedJsPath);
 
+        // 获取标签建议
+        const commentManager = new CommentManager(context);
+        const tagManager = new TagManager();
+        tagManager.updateTags(commentManager.getAllComments());
+        const tagSuggestions = tagManager.getAvailableTagNames().map(tag => `@${tag}`).join(',');
+
         // HTML内容
-        panel.webview.html = getWebviewContent(prompt, placeholder, existingContent, contextInfo, markedJsUri.toString());
+        panel.webview.html = getWebviewContent(context, prompt, placeholder, existingContent, contextInfo, markedJsUri.toString(), tagSuggestions);
 
         // 处理WebView消息
         panel.webview.onDidReceiveMessage(
@@ -79,6 +87,7 @@ function restoreFocus(editor: vscode.TextEditor | undefined) {
 }
 
 function getWebviewContent(
+    context: vscode.ExtensionContext,
     prompt: string,
     placeholder: string,
     existingContent: string,
@@ -88,7 +97,8 @@ function getWebviewContent(
         lineContent?: string;
         selectedText?: string;
     },
-    markedJsUri: string = ''
+    markedJsUri: string = '',
+    tagSuggestions: string = ''
 ): string {
     // HTML转义函数
     const escapeHtml = (text: string): string => {
@@ -145,12 +155,13 @@ function getWebviewContent(
         escapedPrompt: escapeHtml(prompt),
         escapedPlaceholder: escapeHtml(placeholder),
         escapedContent: escapeHtml(existingContent || ''),
-        markedJsUri: markedJsUri || ''
+        markedJsUri: markedJsUri || '',
+        tagSuggestions: tagSuggestions
     };
 
     // 读取模板文件
-    const templatePath = path.join(__dirname, '..', 'src', 'templates', 'commentInput.html');
-    let template = fs.readFileSync(templatePath, 'utf8');
+    const templatePath = vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'commentInput.html');
+    let template = fs.readFileSync(templatePath.fsPath, 'utf8');
 
     // 使用正则表达式一次性替换所有变量
     template = template.replace(/\${(\w+)}/g, (match, key: string) => {
