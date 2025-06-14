@@ -309,11 +309,15 @@ export class CommentManager {
             return [];
         }
 
+        // 使用批量匹配功能，确保不会有多个注释匹配到同一行
+        const matchResults = this.commentMatcher.batchMatchComments(document, fileComments);
+        
         const matchedComments: LocalComment[] = [];
         let needsSave = false;
 
         for (const comment of fileComments) {
-            const matchedLine = this.commentMatcher.findMatchingLine(document, comment);
+            const matchedLine = matchResults.get(comment.id) ?? -1;
+            
             if (matchedLine !== -1) {
                 // 记录匹配状态为true
                 comment.isMatched = true;
@@ -506,9 +510,11 @@ export class CommentManager {
 
             let fileUpdates = 0;
             
+            // 使用批量匹配功能，确保不会有多个注释匹配到同一行
+            const matchResults = this.commentMatcher.batchMatchComments(document, fileComments);
+            
             for (const comment of fileComments) {
-                // 首先进行智能匹配，看注释是否找到了正确的位置
-                const matchedLine = this.commentMatcher.findMatchingLine(document, comment);
+                const matchedLine = matchResults.get(comment.id) ?? -1;
                 
                 if (matchedLine !== -1) {
                     // 注释找到了匹配位置，检查是否需要更新代码快照
