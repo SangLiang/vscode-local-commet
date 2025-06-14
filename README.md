@@ -202,6 +202,11 @@ npm run compile
 
 ### Version History
 
+## [1.0.8] - 2025-06-14
+-  🔨  We used a stricter matching algorithm to fix the issue of mismatched comments and code positions caused by large code block modifications
+-  ✨  In the command line panel, some useless commands were removed
+-  🔨  Other issues
+
 ## [1.0.7] - 2025-06-04
 
 ###  🔨  Changed
@@ -495,6 +500,13 @@ npm run compile
 ## 📝 更新日志
 
 ### 变更日志
+
+
+## [1.0.8] - 2025-06-14
+- 🔨 使用了更严格的匹配算法，修复在大的代码块改动后导致的注释与代码位置不匹配的问题
+- ✨ 在命令行的panel中，移除了一些没有用的命令
+- 🔨 其他的一些问题
+
 
 ## [1.0.7] - 2025-06-04
 

@@ -2,7 +2,7 @@
   "name": "vscode-local-comment",
   "displayName": "Local Comment(本地注释)",
   "description": "Add local comments in the code, support user-defined tag jumps, and support markdown notes. The modification will not affect the original file, nor will it submit local comments to the version control tool. The comment content supports backup and recovery.(添加本地注释，支持用户标签跳转，markdown笔记。修改不会影响原文件)",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "sangliang",
   "author": {
     "name": "SangLiang",
