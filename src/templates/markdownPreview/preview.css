@@ -308,7 +308,7 @@
     font-weight: 600;
 }
 
-#previewArea code {
+#previewArea code:not(.hljs) {
     padding: 0.2em 0.4em;
     margin: 0;
     border-radius: 6px;
@@ -321,16 +321,14 @@
     overflow: auto;
     line-height: 1.45;
     border-radius: 6px;
-    background-color: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.12));
     font-size: 85%;
 }
 
 #previewArea pre code {
-    display: inline;
+    display: block;
     padding: 0;
     margin: 0;
     border-radius: 0;
-    background: transparent;
     font-size: 100%;
     word-break: normal;
     white-space: pre;
