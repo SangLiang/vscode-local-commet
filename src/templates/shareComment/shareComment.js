@@ -4,6 +4,8 @@
     let currentPreviewFontSize = null; // 保存当前预览字体大小
 
     const renderCore = window.MarkdownRenderCore.create();
+    /** 可用标签白名单，由扩展侧 SET_AVAILABLE_TAGS 下发；传入 renderMarkdownToHtml 后仅渲染真实存在的 @tag */
+    let availableTagNames = [];
     // 全局、一次性的初始化任务
     const initializationPromise = renderCore.waitForLibs()
         .then(() => {
@@ -24,7 +26,7 @@
 
         try {
             await initializationPromise;
-            const finalHtmlWithSvg = await renderCore.renderMarkdownToHtml(content);
+            const finalHtmlWithSvg = await renderCore.renderMarkdownToHtml(content, availableTagNames);
             previewArea.innerHTML = finalHtmlWithSvg || '<p>预览生成失败</p>';
             
             if (currentPreviewFontSize && typeof window.applyPreviewFontSize === 'function') {
@@ -287,6 +289,18 @@
                     }
                 } catch (error) {
                     console.error('设置Mermaid主题失败:', error);
+                }
+                break;
+            case 'setAvailableTags':
+                // 扩展侧下发可用标签白名单，用于精确渲染 @tag 链接
+                {
+                    const next = Array.isArray(message.tagNames) ? message.tagNames : [];
+                    if (next.length !== availableTagNames.length || next.some((t, i) => t !== availableTagNames[i])) {
+                        availableTagNames = next;
+                        if (window.markdownContent) {
+                            updatePreview(window.markdownContent);
+                        }
+                    }
                 }
                 break;
         }

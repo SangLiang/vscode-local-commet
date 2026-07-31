@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { CommentManager } from '../managers/commentManager';
+import { TagManager } from '../managers/tagManager';
 import { WebviewUtils, ResourceUris } from '../utils/webviewUtils';
 import { getErrorMessage } from '../utils/utils';
 import { logger } from '../utils/logger';
@@ -134,6 +135,16 @@ export async function showShareCommentWebview(
                 command: IPC_MESSAGES.SET_PREVIEW_FONT_SIZE,
                 fontSize: fontSize
             });
+
+            // 发送可用标签白名单，供预览精确渲染 @tag 链接（与 .md 预览一致）
+            if (globalCommentManager) {
+                const tagManager = new TagManager();
+                tagManager.updateTags(globalCommentManager.getAllComments());
+                panel.webview.postMessage({
+                    command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
+                    tagNames: tagManager.getAvailableTagNames()
+                });
+            }
         } catch (error) {
             logger.error('发送配置失败:', error);
         }

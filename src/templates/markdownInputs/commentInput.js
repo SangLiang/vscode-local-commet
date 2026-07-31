@@ -8,6 +8,8 @@
     let currentPreviewFontSize = null; // 保存当前预览字体大小
 
     const renderCore = window.MarkdownRenderCore.create();
+    /** 可用标签白名单，由扩展侧 SET_AVAILABLE_TAGS 下发；传入 renderMarkdownToHtml 后仅渲染真实存在的 @tag */
+    let availableTagNames = [];
     // 全局、一次性的初始化任务
     const initializationPromise = renderCore.waitForLibs()
         .catch(error => {
@@ -158,7 +160,7 @@
             }
 
             await initializationPromise;
-            const finalHtmlWithSvg = await renderCore.renderMarkdownToHtml(content);
+            const finalHtmlWithSvg = await renderCore.renderMarkdownToHtml(content, availableTagNames);
 
             // 一次性更新DOM（更新前保存输入框滚动比例，更新后恢复预览滚动，避免输入时预览总回到顶部）
             const inputMax = textarea.scrollHeight - textarea.clientHeight;
@@ -261,6 +263,16 @@
             tagSuggestions = message.tagSuggestions || '';
             tagList = tagSuggestions.split(',').filter(tag => tag.length > 0);
             console.log('标签建议已更新:', tagList.length + ' 个标签');
+        } else if (message.command === 'setAvailableTags') {
+            // 扩展侧下发可用标签白名单，用于精确渲染 @tag 链接
+            const next = Array.isArray(message.tagNames) ? message.tagNames : [];
+            if (next.length !== availableTagNames.length || next.some((t, i) => t !== availableTagNames[i])) {
+                availableTagNames = next;
+                // 当前若处于预览态，立即用新白名单重渲染
+                if (currentTab === 'preview-tab' && textarea.value) {
+                    debouncedUpdatePreview(textarea.value);
+                }
+            }
         } else if (message.command === 'updateCodeContext') {
             // 异步更新代码上下文
             updateCodeContext(message.contextLines, message.contextStartLine, message.lineNumber);

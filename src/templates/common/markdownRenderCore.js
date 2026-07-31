@@ -16,11 +16,11 @@
  *
  * 渲染顺序（勿随意调换）：
  *   1. ${标签} 占位（避免被 KaTeX 的 $ 正则误伤）
- *   2. @标签 → span.tag-link
- *   3. 提取 ```mermaid，并行 mermaid.render，控件 HTML 暂存
- *   4. KaTeX $$ / $
- *   5. 恢复标签声明 HTML
- *   6. marked.parse
+ *   2. 提取 ```mermaid，并行 mermaid.render，控件 HTML 暂存
+ *   3. KaTeX $$ / $
+ *   4. 恢复标签声明 HTML
+ *   5. marked.parse
+ *   6. @tag → span.tag-link（在 HTML 中后处理，跳过 pre/code，按白名单精确匹配）
  *   7. 将 language-mermaid 代码块换为已渲染 SVG（避免 SVG 内 <style> 被 marked 当文本）
  */
 (function (global) {
@@ -237,12 +237,63 @@
             return finalContent;
         }
 
+        /** 将 HTML 按 pre/code 块拆段，便于在块外做后处理 */
+        function splitHtmlPreservingCodeBlocks(html) {
+            var parts = [];
+            var regex = /(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/gi;
+            var lastIndex = 0;
+            var match;
+            while ((match = regex.exec(html)) !== null) {
+                if (match.index > lastIndex) {
+                    parts.push({ preserved: false, html: html.slice(lastIndex, match.index) });
+                }
+                parts.push({ preserved: true, html: match[0] });
+                lastIndex = match.index + match[0].length;
+            }
+            if (lastIndex < html.length) {
+                parts.push({ preserved: false, html: html.slice(lastIndex) });
+            }
+            return parts;
+        }
+
+        /**
+         * 在 HTML 中（跳过 pre/code）将 @tag 替换为可点击链接。
+         * - 传入白名单时仅匹配真实存在的标签（与 .md 预览一致，避免误伤普通 @xxx）。
+         * - 未传入白名单时回退到原「所有 @xxx 均视为标签」的行为。
+         * @param {string} html
+         * @param {string[]|undefined} availableTagNames
+         */
+        function applyTagLinksInHtml(html, availableTagNames) {
+            return splitHtmlPreservingCodeBlocks(html).map(function (part) {
+                if (part.preserved) {
+                    return part.html;
+                }
+                var segment = part.html;
+                if (availableTagNames && availableTagNames.length > 0) {
+                    var tagPattern = availableTagNames.map(function (name) {
+                        return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    }).join('|');
+                    var tagRegex = new RegExp('@(' + tagPattern + ')', 'g');
+                    segment = segment.replace(tagRegex, function (match, tagName) {
+                        return '<span class="tag-link" data-tag="' + tagName + '" style="color: var(--vscode-symbolIcon-functionForeground); font-weight: bold; cursor: pointer; text-decoration: underline;">' + match + '</span>';
+                    });
+                } else {
+                    segment = segment.replace(
+                        /@([\u4e00-\u9fa5a-zA-Z0-9_]+)/g,
+                        '<span class="tag-link" data-tag="$1" style="color: var(--vscode-symbolIcon-functionForeground); font-weight: bold; cursor: pointer; text-decoration: underline;">@$1</span>'
+                    );
+                }
+                return segment;
+            }).join('');
+        }
+
         /**
          * Markdown → HTML（含标签、KaTeX、Mermaid）。单块 Mermaid 失败不阻断整页。
          * @param {string} content
+         * @param {string[]|undefined} [availableTagNames] 可用标签白名单；传入时仅渲染真实存在的 @tag
          * @returns {Promise<string>}
          */
-        async function renderMarkdownToHtml(content) {
+        async function renderMarkdownToHtml(content, availableTagNames) {
             await waitForLibs();
 
             // ${标签} 先占位，支持中文标签名
@@ -254,12 +305,6 @@
                     tagPlaceholders.set(placeholder, { original: match, tagName: tagName });
                     return placeholder;
                 }
-            );
-
-            // @引用；点击跳转由页面绑定 .tag-link
-            processedContent = processedContent.replace(
-                /@([\u4e00-\u9fa5a-zA-Z0-9_]+)/g,
-                '<span class="tag-link" data-tag="$1" style="color: var(--vscode-symbolIcon-functionForeground); font-weight: bold; cursor: pointer; text-decoration: underline;">@$1</span>'
             );
 
             // Mermaid：先渲染 SVG，围栏原文留给 marked，解析后再替换
@@ -288,6 +333,10 @@
             });
 
             var finalHtml = marked.parse(finalContent);
+
+            // @tag 链接放在 marked.parse 之后处理，避免误伤代码块 / KaTeX 输出中的 @
+            finalHtml = applyTagLinksInHtml(finalHtml, availableTagNames);
+
             var svgIndex = 0;
             var mermaidCodeBlockRegex = /<pre><code class="language-mermaid">[\s\S]*?<\/code><\/pre>/g;
             return finalHtml.replace(mermaidCodeBlockRegex, function () {

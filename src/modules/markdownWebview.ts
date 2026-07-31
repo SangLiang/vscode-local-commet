@@ -153,12 +153,19 @@ export async function showMarkdownWebviewInput(
                             const commentManager = new CommentManager(context);
                             const tagManager = new TagManager();
                             tagManager.updateTags(commentManager.getAllComments());
-                            const asyncTagSuggestions = tagManager.getAvailableTagNames().map(tag => `@${tag}`).join(',');
+                            const availableTagNames = tagManager.getAvailableTagNames();
+                            const asyncTagSuggestions = availableTagNames.map(tag => `@${tag}`).join(',');
                             
                             // 向webview发送标签建议数据
                             panel.webview.postMessage({
                                 command: IPC_MESSAGES.UPDATE_TAG_SUGGESTIONS,
                                 tagSuggestions: asyncTagSuggestions
+                            });
+
+                            // 同步发送可用标签白名单，供预览精确渲染 @tag 链接（与 .md 预览一致）
+                            panel.webview.postMessage({
+                                command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
+                                tagNames: availableTagNames
                             });
                         })
                     );
