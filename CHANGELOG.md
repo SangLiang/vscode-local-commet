@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 [中文版](./CHANGELOG.zh-CN.md)
 
+## [2.1.2] - 2026-08-03
+
+### Changed
+
+- Optimized Markdown preview styles, improved margins and fonts
+
+- Fixed Mermaid diagram height being too tall, causing oversized image display
+
+- Fixed an issue where code block color was too similar to the background in light themes
+
+- Fixed a notification prompting login in the bottom-right corner when users are not using the multi-user collaboration version
+
+- Optimized code structure related to Markdown rendering
+
 ## [2.1.1] - 2026-07-15
 
 ### Changed
