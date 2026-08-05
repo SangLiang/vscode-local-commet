@@ -7,7 +7,10 @@ vi.mock('fs', () => {
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
     readFileSync: vi.fn(),
-    writeFileSync: vi.fn()
+    writeFileSync: vi.fn(),
+    promises: {
+      writeFile: vi.fn()
+    }
   };
 });
 
@@ -357,8 +360,8 @@ describe('CommentStorage', () => {
 
       await storage.saveComments();
 
-      expect(fs.writeFileSync).toHaveBeenCalled();
-      const writtenData = JSON.parse(vi.mocked(fs.writeFileSync).mock.calls[0][1] as string);
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+      const writtenData = JSON.parse(vi.mocked(fs.promises.writeFile).mock.calls[0][1] as string);
       expect(writtenData.comments['/test/file.ts']).toHaveLength(1);
     });
   });

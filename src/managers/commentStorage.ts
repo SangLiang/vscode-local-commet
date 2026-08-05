@@ -6,6 +6,8 @@ import { StoragePathUtils, StoragePaths, StorageConfig } from '../utils/storageP
 import { getFirstWorkspaceFolder, getFirstWorkspacePathOrWarn, remapFileCommentsToWorkspace } from '../utils/utils';
 import { generateId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
+import { DELAY_TIMES } from '../constants';
+import { TimerManager } from '../utils/timerUtils';
 
 /**
  * 注释存储管理类
@@ -23,6 +25,8 @@ export class CommentStorage {
   private _shareComments: FileComments = {};
   private _storageFile: string;
   private _context: vscode.ExtensionContext;
+  private _saveTimer: NodeJS.Timeout | null = null;
+  private _timerManager: TimerManager = new TimerManager();
 
   constructor(context: vscode.ExtensionContext) {
     this._context = context;
@@ -236,10 +240,40 @@ export class CommentStorage {
   // ============== 数据保存 ==============
 
   /**
-   * 保存注释数据到磁盘
-   * 注意：此方法仅负责持久化，不触发任何事件
+   * 立即保存注释数据到磁盘（用于配置切换等需要立即落盘的场景）
    */
   async saveComments(): Promise<void> {
+    await this._writeToDisk();
+  }
+
+  /**
+   * 防抖保存：合并高频调用，100ms 后写盘（用于 CRUD 操作等高频路径）
+   */
+  scheduleSave(): void {
+    if (this._saveTimer) {
+      this._timerManager.clearTimeout(this._saveTimer);
+    }
+    this._saveTimer = this._timerManager.setTimeout(() => {
+      this._saveTimer = null;
+      void this._writeToDisk();
+    }, DELAY_TIMES.ASYNC_SAVE);
+  }
+
+  /**
+   * 立即刷盘：取消防抖 timer，立即执行写入（用于 dispose 时确保数据不丢失）
+   */
+  flush(): void {
+    if (this._saveTimer) {
+      this._timerManager.clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+      void this._writeToDisk();
+    }
+  }
+
+  /**
+   * 实际写盘逻辑（异步，不阻塞 UI 线程）
+   */
+  private async _writeToDisk(): Promise<void> {
     try {
       const dataToSave = {
         comments: this._comments,
@@ -256,7 +290,7 @@ export class CommentStorage {
         } catch (err) {
           if (StoragePathUtils.isWritePermissionError(err)) {
             if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-              fs.writeFileSync(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+              await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
             } else {
               vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
             }
@@ -269,19 +303,19 @@ export class CommentStorage {
 
         if (currentCommentsFile) {
           try {
-            fs.writeFileSync(currentCommentsFile, JSON.stringify(dataToSave, null, 2));
+            await fs.promises.writeFile(currentCommentsFile, JSON.stringify(dataToSave, null, 2));
           } catch (err) {
             if (StoragePathUtils.isWritePermissionError(err) && StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-              fs.writeFileSync(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+              await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
             } else {
               throw err;
             }
           }
         } else if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-          fs.writeFileSync(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+          await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
         } else {
           const defaultFile = path.join(paths.commentsDir, 'comments.json');
-          fs.writeFileSync(defaultFile, JSON.stringify(dataToSave, null, 2));
+          await fs.promises.writeFile(defaultFile, JSON.stringify(dataToSave, null, 2));
           const config = StoragePathUtils.loadConfig(workspacePath);
           config.comments = 'comments.json';
           await StoragePathUtils.saveConfig(config);
@@ -291,7 +325,7 @@ export class CommentStorage {
         if (!fs.existsSync(storageDir)) {
           fs.mkdirSync(storageDir, { recursive: true });
         }
-        fs.writeFileSync(this._storageFile, JSON.stringify(dataToSave, null, 2));
+        await fs.promises.writeFile(this._storageFile, JSON.stringify(dataToSave, null, 2));
       }
 
       this._storageFile = this._getProjectStorageFile(this._context);

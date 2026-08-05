@@ -16,7 +16,7 @@ export const DELAY_TIMES = {
 
     /**
      * 异步保存操作的延迟时间
-     * 用于避免阻塞UI线程
+     * 用于避免高频写盘阻塞UI线程
      */
     ASYNC_SAVE: 100,
 

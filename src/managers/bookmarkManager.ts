@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { logger } from '../utils/logger';
 import { TimerManager } from '../utils/timerUtils';
 import { StoragePathUtils, StoragePaths, StorageConfig } from '../utils/storagePathUtils';
 import { getFirstWorkspaceFolder, getFirstWorkspacePathOrWarn } from '../utils/utils';
+import { generateId } from '../utils/idUtils';
 
 export interface Bookmark {
     id: string;
@@ -34,7 +34,7 @@ export class BookmarkManager {
     // 定时器管理器
     private _timerManager: TimerManager = new TimerManager();
     // 防抖保存
-    private _saveTimeout: NodeJS.Timeout | null = null;
+
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -352,7 +352,7 @@ export class BookmarkManager {
         }
 
         const bookmark: Bookmark = {
-            id: this.generateId(),
+            id: generateId(),
             line: line,
             timestamp: Date.now(),
             filePath: filePath,
@@ -497,13 +497,6 @@ export class BookmarkManager {
         } catch (error) {
             logger.error('跳转到书签失败:', error);
         }
-    }
-
-    /**
-     * 生成唯一ID
-     */
-    private generateId(): string {
-        return crypto.randomBytes(16).toString('hex');
     }
 
     /**
@@ -679,21 +672,6 @@ export class BookmarkManager {
     }
 
     /**
-     * 防抖保存书签 - 用于用户手动操作后的保存
-     */
-    private _debouncedSave(): void {
-        if (this._saveTimeout) {
-            this._timerManager.clearTimeout(this._saveTimeout);
-        }
-        
-        this._saveTimeout = this._timerManager.setTimeout(() => {
-            this.saveBookmarks();
-            this._onDidChangeBookmarks.fire();
-            this._saveTimeout = null;
-        }, 100); // 用户手动操作后的保存延迟
-    }
-
-    /**
      * 比较两个书签位置
      * 返回值: < 0 表示 a 在 b 之前, > 0 表示 a 在 b 之后, 0 表示相同位置
      */
@@ -779,10 +757,6 @@ export class BookmarkManager {
      * 释放资源
      */
     public dispose(): void {
-        if (this._saveTimeout) {
-            this._timerManager.clearTimeout(this._saveTimeout);
-            this._saveTimeout = null;
-        }
         this._timerManager.dispose(); // 清理所有定时器
         this._onDidChangeBookmarks.dispose();
     }

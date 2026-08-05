@@ -97,6 +97,7 @@ export class CommentManager implements vscode.Disposable {
      * 扩展停用时由 ExtensionContainer 调用
      */
     dispose(): void {
+        this.storage.flush();
         this._timerManager.dispose();
         this._onDidChangeComments.dispose();
         this._onDidChangeSharedComments.dispose();
@@ -105,26 +106,26 @@ export class CommentManager implements vscode.Disposable {
     // ============== 事件触发工具 ==============
 
     /**
-     * 保存并触发本地注释变化事件
+     * 防抖保存并触发本地注释变化事件
      */
     private async _saveAndFire(): Promise<void> {
-        await this.storage.saveComments();
+        this.storage.scheduleSave();
         this._onDidChangeComments.fire();
     }
 
     /**
-     * 保存并触发共享注释变化事件
+     * 防抖保存并触发共享注释变化事件
      */
     private async _saveAndFireShared(): Promise<void> {
-        await this.storage.saveComments();
+        this.storage.scheduleSave();
         this._onDidChangeSharedComments.fire();
     }
 
     /**
-     * 保存并触发所有事件（用于同时影响本地和共享注释的操作）
+     * 防抖保存并触发所有事件（用于同时影响本地和共享注释的操作）
      */
     private async _saveAndFireAll(): Promise<void> {
-        await this.storage.saveComments();
+        this.storage.scheduleSave();
         this._onDidChangeComments.fire();
         this._onDidChangeSharedComments.fire();
     }

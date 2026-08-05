@@ -93,12 +93,16 @@ const mockExistsSync = vi.hoisted(() => vi.fn(() => false));
 const mockReadFileSync = vi.hoisted(() => vi.fn());
 const mockWriteFileSync = vi.hoisted(() => vi.fn());
 const mockMkdirSync = vi.hoisted(() => vi.fn());
+const mockPromisesWriteFile = vi.hoisted(() => vi.fn());
 
 vi.mock('fs', () => ({
   existsSync: mockExistsSync,
   readFileSync: mockReadFileSync,
   writeFileSync: mockWriteFileSync,
   mkdirSync: mockMkdirSync,
+  promises: {
+    writeFile: mockPromisesWriteFile,
+  },
 }));
 
 // Mock path
@@ -1219,7 +1223,7 @@ describe('CommentManager 注释管理器测试', () => {
       vi.mocked(StoragePathUtils.fileExists).mockReturnValue(false);
 
       // 验证保存被调用（即使回退到旧路径）
-      expect(mockWriteFileSync).toHaveBeenCalled();
+      expect(mockPromisesWriteFile).toHaveBeenCalled();
     });
 
     /**
@@ -1288,7 +1292,7 @@ describe('CommentManager 注释管理器测试', () => {
         '创建',
         '取消'
       );
-      expect(mockWriteFileSync).toHaveBeenCalled();
+      expect(mockPromisesWriteFile).toHaveBeenCalled();
 
       // 重置 mock
       vi.mocked(StoragePathUtils.fileExists).mockReturnValue(false);
