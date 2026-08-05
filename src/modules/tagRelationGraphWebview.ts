@@ -86,6 +86,8 @@ export class TagRelationGraphWebview {
             TagRelationGraphWebview.currentPanel.panel.dispose();
         }
 
+        const sourceGroup = vscode.window.tabGroups.activeTabGroup;
+        const sourceViewColumn = activeEditor?.viewColumn ?? sourceGroup.viewColumn;
         const viewColumn = EditorUtils.smartSelectViewColumn(activeEditor);
         const panel = vscode.window.createWebviewPanel(
             VIEW_TYPES.TAG_RELATION_GRAPH,
@@ -100,6 +102,7 @@ export class TagRelationGraphWebview {
                 ]
             }
         );
+        void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
 
         const webview = new TagRelationGraphWebview(panel, context, onMessage);
         TagRelationGraphWebview.currentPanel = webview;

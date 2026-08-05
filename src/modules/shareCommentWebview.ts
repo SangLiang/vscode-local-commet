@@ -48,7 +48,9 @@ export async function showShareCommentWebview(
         }
         : undefined;
 
-    // 智能分屏：在第一列和第二列之间切换，避免覆盖当前编辑器
+    // 智能分屏：侧开，避免覆盖当前编辑器
+    const sourceGroup = vscode.window.tabGroups.activeTabGroup;
+    const sourceViewColumn = activeEditor?.viewColumn ?? sourceGroup.viewColumn;
     const viewColumn = EditorUtils.smartSelectViewColumn(activeEditor);
     
     // 创建WebView面板
@@ -69,6 +71,7 @@ export async function showShareCommentWebview(
             enableFindWidget: false
         }
     );
+    void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
 
     // 读取代码高亮主题配置
     const config = vscode.workspace.getConfiguration('local-comment');

@@ -18,7 +18,7 @@ export class EditorUtils {
 
     /**
      * 智能选择 WebView 面板的列
-     * 在第一列和第二列之间切换，避免覆盖当前编辑器
+     * 最多两列：仅一列时 Beside 侧开；已有两列则打开到「另一侧」组，避免覆盖当前文件。
      * @param activeEditor 可选的编辑器实例
      * @returns 应该在哪个列打开面板
      */
@@ -26,9 +26,52 @@ export class EditorUtils {
         if (!activeEditor) {
             return vscode.ViewColumn.One;
         }
-        return activeEditor.viewColumn === vscode.ViewColumn.One
-            ? vscode.ViewColumn.Two
-            : vscode.ViewColumn.One;
+        const groups = vscode.window.tabGroups.all;
+        if (groups.length <= 1) {
+            return vscode.ViewColumn.Beside;
+        }
+        const activeGroup = vscode.window.tabGroups.activeTabGroup;
+        const otherGroup = groups.find((group) => group !== activeGroup);
+        if (otherGroup?.viewColumn !== undefined) {
+            return otherGroup.viewColumn;
+        }
+        const sourceColumn = activeEditor.viewColumn ?? activeGroup.viewColumn;
+        return sourceColumn === vscode.ViewColumn.Two
+            ? vscode.ViewColumn.One
+            : vscode.ViewColumn.Two;
+    }
+
+    /**
+     * Cursor 等环境可能忽略目标 ViewColumn。
+     * 仅在唯一组时新建右侧组；已有多列时把面板移到另一侧已有组，不新建第三列。
+     */
+    static async ensureWebviewBesideSource(
+        sourceViewColumn: vscode.ViewColumn | undefined,
+        sourceGroup: vscode.TabGroup = vscode.window.tabGroups.activeTabGroup
+    ): Promise<void> {
+        const groups = vscode.window.tabGroups.all;
+        const activeGroup = vscode.window.tabGroups.activeTabGroup;
+
+        if (groups.length === 1) {
+            await vscode.commands.executeCommand('workbench.action.moveEditorToNewGroupRight');
+            return;
+        }
+
+        const stillInSource =
+            activeGroup === sourceGroup ||
+            (sourceViewColumn !== undefined && activeGroup.viewColumn === sourceViewColumn);
+        if (!stillInSource) {
+            return;
+        }
+
+        const activeIndex = groups.indexOf(activeGroup);
+        const sourceIndex = groups.indexOf(sourceGroup);
+        const index = activeIndex >= 0 ? activeIndex : sourceIndex;
+        await vscode.commands.executeCommand(
+            index <= 0
+                ? 'workbench.action.moveEditorToNextGroup'
+                : 'workbench.action.moveEditorToPreviousGroup'
+        );
     }
 
     /**

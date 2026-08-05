@@ -68,12 +68,12 @@ export async function showMarkdownWebviewInput(
     const activeEditor = vscode.window.activeTextEditor;
     
     return new Promise((resolve) => {
-        // 智能分屏：在第一列和第二列之间切换，避免覆盖当前编辑器
+        const sourceGroup = vscode.window.tabGroups.activeTabGroup;
+        const sourceViewColumn = activeEditor?.viewColumn ?? sourceGroup.viewColumn;
         const viewColumn = EditorUtils.smartSelectViewColumn(activeEditor);
         const panelTabBaseTitle = '本地注释';
         const panelTabDirtyTitle = `${panelTabBaseTitle}-未保存*`;
 
-        // 优化：创建WebView面板，减少不必要的配置
         const panel = vscode.window.createWebviewPanel(
             'localCommentInput',
             panelTabBaseTitle,
@@ -92,6 +92,7 @@ export async function showMarkdownWebviewInput(
                 enableFindWidget: false
             }
         );
+        void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
 
         // 读取代码高亮主题配置
         const config = vscode.workspace.getConfiguration('local-comment');
