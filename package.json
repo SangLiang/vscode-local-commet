@@ -331,6 +331,12 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "localComment.action",
+        "label": "Local Comment Action"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {
@@ -384,44 +390,51 @@
       ],
       "editor/context": [
         {
-          "command": "localComment.addComment",
+          "submenu": "localComment.action",
           "group": "localComment",
+          "when": "editorTextFocus"
+        }
+      ],
+      "localComment.action": [
+        {
+          "command": "localComment.addComment",
+          "group": "localComment.comments@1",
           "when": "editorTextFocus"
         },
         {
           "command": "localComment.convertSelectionToComment",
-          "group": "localComment",
+          "group": "localComment.comments@2",
           "when": "editorTextFocus && editorHasSelection"
         },
         {
           "command": "localComment.removeComment",
-          "group": "localComment",
+          "group": "localComment.comments@3",
           "when": "editorTextFocus"
         },
         {
           "command": "localComment.toggleBookmark",
-          "group": "localComment",
+          "group": "localComment.bookmarks@1",
           "when": "editorTextFocus"
         },
         {
-          "command": "localComment.insertTagReference",
-          "group": "localComment",
-          "when": "editorTextFocus && resourceExtname == .md"
-        },
-        {
-          "command": "localComment.previewMarkdown",
-          "group": "localComment",
-          "when": "editorTextFocus && resourceExtname == .md"
-        },
-        {
           "command": "localComment.showAllFilesTags",
-          "group": "localComment",
+          "group": "localComment.tags@1",
           "when": "editorTextFocus"
         },
         {
           "command": "localComment.showTagRelationGraph",
-          "when": "editorTextFocus",
-          "group": "localComment"
+          "group": "localComment.tags@2",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "localComment.insertTagReference",
+          "group": "localComment.tags@3",
+          "when": "editorTextFocus && resourceExtname == .md"
+        },
+        {
+          "command": "localComment.previewMarkdown",
+          "group": "localComment.markdown@1",
+          "when": "editorTextFocus && resourceExtname == .md"
         }
       ],
       "view/title": [
