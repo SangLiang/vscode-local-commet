@@ -19,6 +19,8 @@ let navigationStack: NavigationStack = {
     visitedNodes: new Set()
 };
 
+let commentManagerInstance: CommentManager | null = null;
+
 const tagReferenceRegex = /\@([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
 
 function checkHasChildren(content: string): boolean {
@@ -43,20 +45,31 @@ async function buildGraphData(
     level: number
 ): Promise<GraphData | null> {
     try {
-        const commentManager = new CommentManager(context);
+        const commentManager = commentManagerInstance ?? new CommentManager(context);
         const tagManager = new TagManager();
         tagManager.updateTags(commentManager.getAllComments());
 
-        let content: string;
         let references: string[] = [];
 
         if (level === 0) {
-            // 第一层：从文件内容中提取
-            if (!fs.existsSync(centerFilePath)) {
-                return null;
+            // 第一层：从当前文件提取 @tag 引用
+            references = [];
+            const isMarkdown = centerFilePath.toLowerCase().endsWith('.md');
+            // Markdown 文件：读取正文中的 @tag
+            if (isMarkdown && fs.existsSync(centerFilePath)) {
+                try {
+                    const content = fs.readFileSync(centerFilePath, 'utf8');
+                    references.push(...extractTagReferences(content));
+                } catch {
+                    // 忽略读取失败（如二进制文件）
+                }
             }
-            content = fs.readFileSync(centerFilePath, 'utf8');
-            references = extractTagReferences(content);
+            // 所有文件：合并该文件 Local Comment 注释中的 @tag
+            const comments = commentManager.getComments(vscode.Uri.file(centerFilePath));
+            for (const comment of comments) {
+                references.push(...extractTagReferences(comment.content));
+            }
+            references = [...new Set(references)];
         } else {
             // 第二层及以上：从 tag 定义的注释内容中提取
             const tagName = centerLabel.replace('@', '');
@@ -162,6 +175,7 @@ export function registerTagRelationGraphCommands(
     context: vscode.ExtensionContext,
     commentManager: CommentManager
 ): vscode.Disposable[] {
+    commentManagerInstance = commentManager;
     const disposables: vscode.Disposable[] = [];
 
     // 从文件资源管理器或编辑器触发

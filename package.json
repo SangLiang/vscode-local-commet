@@ -420,7 +420,7 @@
         },
         {
           "command": "localComment.showTagRelationGraph",
-          "when": "editorTextFocus && resourceExtname == .md",
+          "when": "editorTextFocus",
           "group": "localComment"
         }
       ],
@@ -439,7 +439,6 @@
       "explorer/context": [
         {
           "command": "localComment.showTagRelationGraph",
-          "when": "resourceExtname == .md",
           "group": "localComment"
         }
       ],
