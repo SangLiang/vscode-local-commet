@@ -73,6 +73,7 @@
         cy = cytoscape({
             container: container,
             elements: elements,
+            maxZoom: 1.5,
             style: [
                 {
                     selector: 'node',
