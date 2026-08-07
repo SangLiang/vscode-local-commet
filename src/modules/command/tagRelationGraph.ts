@@ -303,19 +303,21 @@ async function handleExpandNode(
 
 async function handleGoToDefinition(message: TagRelationGraphMessage): Promise<void> {
     const filePath = message.filePath;
-    const line = message.line;
 
-    if (!filePath || line === undefined) {
+    if (!filePath) {
         return;
     }
 
     const uri = vscode.Uri.file(filePath);
-    const position = new vscode.Position(line, 0);
-
-    await vscode.window.showTextDocument(uri, {
-        selection: new vscode.Range(position, position),
+    const showOptions: vscode.TextDocumentShowOptions = {
         viewColumn: vscode.ViewColumn.One
-    });
+    };
+    if (message.line !== undefined) {
+        const position = new vscode.Position(message.line, 0);
+        showOptions.selection = new vscode.Range(position, position);
+    }
+
+    await vscode.window.showTextDocument(uri, showOptions);
 }
 
 async function handleNavigateBack(

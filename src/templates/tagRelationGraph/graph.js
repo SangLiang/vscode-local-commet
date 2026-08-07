@@ -137,6 +137,15 @@
             const id = node.data('id');
             const label = node.data('label');
 
+            if (type === 'center') {
+                vscode.postMessage({
+                    command: 'goToDefinition',
+                    filePath: filePath,
+                    line: line
+                });
+                return;
+            }
+
             if (type === 'tag') {
                 if (hasChildren) {
                     vscode.postMessage({
