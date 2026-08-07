@@ -7,6 +7,7 @@ import { VIEW_TYPES, IPC_MESSAGES, COMMANDS, DELAY_TIMES } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
 import { EditorUtils } from '../utils/editorUtils';
 import { getErrorMessage } from '../utils/utils';
+import { resolveMarkdownImagePaths } from '../utils/markdownImageUtils';
 
 /**
  * Markdown 文件自定义预览 Webview。
@@ -29,10 +30,14 @@ export class MarkdownPreviewWebview {
     private readonly activeEditor: vscode.TextEditor | undefined;
     /** 本面板绑定的源文件路径（已 normalize，用于与 document.uri 比较） */
     private readonly _previewFilePath: string;
+    /** 本面板绑定的源文件原始路径（用于解析 Markdown 内相对图片路径） */
+    private readonly _sourceFilePath: string;
     private readonly _syncTimerManager = new TimerManager();
     private _pendingSyncTimer: NodeJS.Timeout | undefined;
     private _lastSyncedContent: string | undefined;
     private availableTagNames: string[] = [];
+    /** 本地图片 webview URI → 文件绝对路径，供导出 HTML 时内联资源 */
+    private readonly _localImageUriMap = new Map<string, string>();
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -45,6 +50,7 @@ export class MarkdownPreviewWebview {
         this.context = context;
         this.activeEditor = activeEditor;
         this._previewFilePath = MarkdownPreviewWebview.normalizePreviewPath(previewFilePath);
+        this._sourceFilePath = previewFilePath;
         this.availableTagNames = availableTagNames || [];
 
         this.panel.onDidDispose(() => this.dispose());
@@ -177,6 +183,19 @@ export class MarkdownPreviewWebview {
 
         // 在当前编辑器列开新 Tab，不占侧栏列，避免与已有分屏预览布局冲突
         const viewColumn = EditorUtils.selectViewColumnForPreviewTab(activeEditor);
+        // 允许加载 .md 文件所在工作区的本地图片（相对路径图片需 asWebviewUri 后才能被 CSP 放行）
+        const localResourceRoots = [
+            vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
+            vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),
+            vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
+            vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')
+        ];
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+        if (workspaceFolder) {
+            localResourceRoots.push(workspaceFolder.uri);
+        } else {
+            localResourceRoots.push(vscode.Uri.file(path.dirname(filePath)));
+        }
         const panel = vscode.window.createWebviewPanel(
             VIEW_TYPES.MARKDOWN_PREVIEW,
             '预览: ' + fileName,
@@ -184,12 +203,7 @@ export class MarkdownPreviewWebview {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
-                    vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')
-                ],
+                localResourceRoots: localResourceRoots,
                 enableCommandUris: false,
                 enableFindWidget: false
             }
@@ -220,6 +234,7 @@ export class MarkdownPreviewWebview {
     }
 
     private initialize(content: string, fileName: string): void {
+        content = this.resolveMarkdownContent(content);
         const config = vscode.workspace.getConfiguration('local-comment');
         const highlightTheme = config.get<string>('codeHighlight.theme', 'github-dark');
 
@@ -280,6 +295,18 @@ export class MarkdownPreviewWebview {
 
     }
 
+    /** 将 Markdown 内的本地图片相对路径转换为 webview 可加载的 URI */
+    private resolveMarkdownContent(content: string): string {
+        if (!content || !this._sourceFilePath) {
+            return content;
+        }
+        return resolveMarkdownImagePaths(content, this._sourceFilePath, (absPath) => {
+            const uri = this.panel.webview.asWebviewUri(vscode.Uri.file(absPath)).toString();
+            this._localImageUriMap.set(uri, absPath);
+            return uri;
+        });
+    }
+
     private isLiveSyncEnabled(): boolean {
         return vscode.workspace.getConfiguration('local-comment')
             .get<boolean>('markdownPreview.liveSync', true);
@@ -322,7 +349,8 @@ export class MarkdownPreviewWebview {
 
     /** 通过 postMessage 增量更新 Webview；内容与标签均未变时跳过，减少闪动 */
     updateContent(content: string, availableTagNames?: string[]): void {
-        const contentUnchanged = content === this._lastSyncedContent;
+        const resolvedContent = this.resolveMarkdownContent(content);
+        const contentUnchanged = resolvedContent === this._lastSyncedContent;
         const tagsUnchanged = this.tagsEqual(availableTagNames);
         if (contentUnchanged && tagsUnchanged) {
             return;
@@ -331,11 +359,11 @@ export class MarkdownPreviewWebview {
         if (availableTagNames !== undefined) {
             this.availableTagNames = availableTagNames;
         }
-        this._lastSyncedContent = content;
+        this._lastSyncedContent = resolvedContent;
         // liveSync 路径不传 tagNames，避免每次编辑都触发标签重渲染
         const payload: { command: string; content: string; tagNames?: string[] } = {
             command: IPC_MESSAGES.UPDATE_CONTENT,
-            content: content,
+            content: resolvedContent,
         };
         if (availableTagNames !== undefined) {
             payload.tagNames = this.availableTagNames;
@@ -453,8 +481,9 @@ export class MarkdownPreviewWebview {
     private inlineLocalImages(html: string, paths: string[]): string {
         for (const imgPath of paths) {
             try {
-                const buf = fs.readFileSync(imgPath);
-                const ext = path.extname(imgPath).slice(1);
+                const filePath = this._localImageUriMap.get(imgPath) || imgPath;
+                const buf = fs.readFileSync(filePath);
+                const ext = path.extname(filePath).slice(1);
                 const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
                 const dataUri = `data:${mime};base64,${buf.toString('base64')}`;
                 html = html.split(imgPath).join(dataUri);
