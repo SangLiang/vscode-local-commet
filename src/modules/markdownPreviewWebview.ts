@@ -7,7 +7,7 @@ import { VIEW_TYPES, IPC_MESSAGES, COMMANDS, DELAY_TIMES } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
 import { EditorUtils } from '../utils/editorUtils';
 import { getErrorMessage } from '../utils/utils';
-import { resolveMarkdownImagePaths } from '../utils/markdownImageUtils';
+import { resolveMarkdownImagePaths, isVscodeResourceUri, decodeVscodeResourceUriToPath } from '../utils/markdownImageUtils';
 
 /**
  * Markdown 文件自定义预览 Webview。
@@ -481,7 +481,9 @@ export class MarkdownPreviewWebview {
     private inlineLocalImages(html: string, paths: string[]): string {
         for (const imgPath of paths) {
             try {
-                const filePath = this._localImageUriMap.get(imgPath) || imgPath;
+                const filePath = this._localImageUriMap.get(imgPath)
+                    || decodeVscodeResourceUriToPath(imgPath)
+                    || imgPath;
                 const buf = fs.readFileSync(filePath);
                 const ext = path.extname(filePath).slice(1);
                 const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
@@ -496,6 +498,9 @@ export class MarkdownPreviewWebview {
     private async inlineRemoteImages(html: string, urls: string[]): Promise<string> {
         const axios = (await import('axios')).default;
         for (const url of urls) {
+            if (isVscodeResourceUri(url)) {
+                continue;
+            }
             try {
                 const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 5000 });
                 const contentType = response.headers['content-type'] || 'image/png';

@@ -2350,6 +2350,17 @@ body {
         return parts.join('\n');
     }
 
+    /**
+     * 判断是否为 VS Code webview 资源 URI。
+     * 新版 asWebviewUri 生成 `https://file%2B.vscode-resource.vscode-cdn.net/...`，
+     * 以 https 开头但并非真实可远程访问的 URL，导出时须按本地文件内联为 base64。
+     */
+    function isVscodeResourceUri(src) {
+        return src.startsWith('vscode-webview-resource:')
+            || src.startsWith('vscode-resource:')
+            || /^https?:\/\/[^/]*vscode-resource[^/]*\//i.test(src);
+    }
+
     /** 收集需由扩展侧 fs / axios 内联为 data URI 的图片路径 */
     function collectImagePaths(clone) {
         const localPaths = [];
@@ -2358,7 +2369,9 @@ body {
         clone.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src');
             if (!src || src.startsWith('data:')) return;
-            if (src.startsWith('http://') || src.startsWith('https://')) {
+            if (isVscodeResourceUri(src)) {
+                localPaths.push(src);
+            } else if (src.startsWith('http://') || src.startsWith('https://')) {
                 remoteUrls.push(src);
             } else {
                 localPaths.push(src);

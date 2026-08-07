@@ -60,6 +60,58 @@ export function resolveImagePathToAbsolute(src: string, mdFilePath: string): str
     return path.normalize(path.resolve(path.dirname(mdFilePath), filePath));
 }
 
+const VSCODE_RESOURCE_URI_REGEX = /^https?:\/\/[^/]*vscode-resource[^/]*\//i;
+
+/**
+ * 判断 src 是否为 VS Code webview 资源 URI。
+ * 覆盖 `vscode-webview-resource:` / `vscode-resource:` scheme，
+ * 以及新版 `https://file%2B.vscode-resource.vscode-cdn.net/...` 形式
+ * （这类地址以 https:// 开头，但并非可远程访问的真实 URL，导出时不能当远程图片处理）。
+ */
+export function isVscodeResourceUri(src: string): boolean {
+    if (!src) {
+        return false;
+    }
+    return src.startsWith('vscode-webview-resource:')
+        || src.startsWith('vscode-resource:')
+        || VSCODE_RESOURCE_URI_REGEX.test(src);
+}
+
+function decodeResourcePath(encoded: string): string {
+    let decoded = encoded;
+    try {
+        decoded = decodeURIComponent(encoded);
+    } catch {
+        decoded = encoded;
+    }
+    if (/^[a-zA-Z]:[\\/]/.test(decoded)) {
+        if (process.platform === 'win32') {
+            decoded = decoded.replace(/^([a-zA-Z]):/, (_, ch: string) => ch.toUpperCase() + ':');
+        }
+        return path.normalize(decoded);
+    }
+    return path.normalize('/' + decoded);
+}
+
+/**
+ * 将 webview 资源 URI 还原为本地文件绝对路径；
+ * 非资源 URI（如普通 https 图片）返回 undefined。
+ */
+export function decodeVscodeResourceUriToPath(src: string): string | undefined {
+    if (!src) {
+        return undefined;
+    }
+    if (src.startsWith('vscode-webview-resource:') || src.startsWith('vscode-resource:')) {
+        const match = src.match(/^[a-z-]+:\/\/[^/]*\/([\s\S]*)$/i);
+        return match ? decodeResourcePath(match[1]) : undefined;
+    }
+    if (VSCODE_RESOURCE_URI_REGEX.test(src)) {
+        const match = src.match(/^https?:\/\/[^/]*\/([\s\S]*)$/i);
+        return match ? decodeResourcePath(match[1]) : undefined;
+    }
+    return undefined;
+}
+
 function resolveSrc(src: string, mdFilePath: string, resolveUri: (absPath: string) => string): string {
     if (isSkippableImageSrc(src)) {
         return src;

@@ -4,6 +4,8 @@ import {
     isSkippableImageSrc,
     resolveImagePathToAbsolute,
     resolveMarkdownImagePaths,
+    isVscodeResourceUri,
+    decodeVscodeResourceUriToPath,
 } from './markdownImageUtils';
 
 const MD_DIR = path.join(path.parse(process.cwd()).root, 'repo', 'docs');
@@ -100,6 +102,53 @@ describe('markdownImageUtils 工具函数测试', () => {
             const md = '![x](images/my%20file.svg)';
             const out = resolveMarkdownImagePaths(md, MD_FILE, fakeResolveUri);
             expect(out).toContain('docs/images/my file.svg');
+        });
+    });
+
+    describe('isVscodeResourceUri - webview 资源 URI 识别', () => {
+        it('新版 https://file%2B.vscode-resource 形式应识别为资源 URI', () => {
+            expect(isVscodeResourceUri('https://file%2B.vscode-resource.vscode-cdn.net/d%3A/work/x.svg')).toBe(true);
+            expect(isVscodeResourceUri('https://file+.vscode-resource.vscode-cdn.net/d%3A/work/x.svg')).toBe(true);
+        });
+
+        it('vscode-webview-resource 与 vscode-resource scheme 应识别为资源 URI', () => {
+            expect(isVscodeResourceUri('vscode-webview-resource://abc/d%3A/work/x.svg')).toBe(true);
+            expect(isVscodeResourceUri('vscode-resource://abc/d%3A/work/x.svg')).toBe(true);
+        });
+
+        it('普通远程 URL 与 data URI 不应识别为资源 URI', () => {
+            expect(isVscodeResourceUri('https://example.com/a.svg')).toBe(false);
+            expect(isVscodeResourceUri('http://example.com/a.svg')).toBe(false);
+            expect(isVscodeResourceUri('data:image/svg+xml;base64,xxxx')).toBe(false);
+            expect(isVscodeResourceUri('images/foo.svg')).toBe(false);
+        });
+    });
+
+    describe('decodeVscodeResourceUriToPath - 资源 URI 还原为绝对路径', () => {
+        it('新版 https 形式应解码出绝对路径', () => {
+            expect(decodeVscodeResourceUriToPath('https://file%2B.vscode-resource.vscode-cdn.net/d%3A/work/docs/x.svg'))
+                .toBe(path.normalize('D:/work/docs/x.svg'));
+        });
+
+        it('vscode-webview-resource 形式应解码出绝对路径', () => {
+            expect(decodeVscodeResourceUriToPath('vscode-webview-resource://abc/d%3A/work/x.svg'))
+                .toBe(path.normalize('D:/work/x.svg'));
+        });
+
+        it('Unix 风格路径应还原为绝对路径', () => {
+            expect(decodeVscodeResourceUriToPath('https://file%2B.vscode-resource.vscode-cdn.net/home/user/x.svg'))
+                .toBe(path.normalize('/home/user/x.svg'));
+        });
+
+        it('URL 编码的空格应被解码', () => {
+            expect(decodeVscodeResourceUriToPath('https://file%2B.vscode-resource.vscode-cdn.net/d%3A/work/my%20file.svg'))
+                .toBe(path.normalize('D:/work/my file.svg'));
+        });
+
+        it('非资源 URI 应返回 undefined', () => {
+            expect(decodeVscodeResourceUriToPath('https://example.com/a.svg')).toBeUndefined();
+            expect(decodeVscodeResourceUriToPath('images/foo.svg')).toBeUndefined();
+            expect(decodeVscodeResourceUriToPath('')).toBeUndefined();
         });
     });
 });
