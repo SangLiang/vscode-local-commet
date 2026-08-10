@@ -25,12 +25,12 @@ export class CommentProvider implements vscode.Disposable {
         this.commentManager = commentManager;
 
         // 初始创建装饰类型（先不设置图标，这里的图标指行号旁边的小图标，可以用svg）
+        // 行尾用 before：与 GitLens 等扩展的 after 并存时，注释会出现在更靠近代码的一侧
         this.decorationType = vscode.window.createTextEditorDecorationType({
-            // 行内显示注释内容（不包含图标）
-            after: {
+            before: {
                 color: '#888888',
                 fontStyle: 'italic',
-                margin: '0 0 0 1em'
+                margin: '0 0 0 2em'
             },
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         });
@@ -92,11 +92,11 @@ export class CommentProvider implements vscode.Disposable {
         const enableGutter = config.get<boolean>('enableGutterProvider', true);
 
         const options: vscode.DecorationRenderOptions = {
-            // 行内显示注释内容（始终显示）
-            after: {
+            // 行尾用 before，尽量排在 GitLens Current Line Blame（after）左侧
+            before: {
                 color: '#888888',
                 fontStyle: 'italic',
-                margin: '0 0 0 1em'
+                margin: '0 0 0 2em'
             },
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         };
@@ -170,7 +170,7 @@ export class CommentProvider implements vscode.Disposable {
             // 优先显示本地注释的内容和行号标识
             if (localComments.length > 0) {
                 const normalDecoration = this.createSingleDecoration(lineComments, line, editor);
-                if (normalDecoration.renderOptions?.after?.contentText) {
+                if (normalDecoration.renderOptions?.before?.contentText) {
                     normalDecorations.push(normalDecoration);
                 }
             }
@@ -192,7 +192,7 @@ export class CommentProvider implements vscode.Disposable {
         let contentText = '';
         let color = '#6B7283'; // 默认灰蓝色
         let fontStyle = 'italic';
-        let margin = '0 0 0 0.8em';
+        let margin = '0 0 0 2em';
 
         // 只显示本地注释
         if (localComments.length > 0) {
@@ -201,11 +201,11 @@ export class CommentProvider implements vscode.Disposable {
             color = '#6B7283'; // 灰蓝色
         }
 
-        // 创建装饰选项
+        // 创建装饰选项（行尾 before，见 decorationType 说明）
         const decoration: vscode.DecorationOptions = {
             range: new vscode.Range(line.lineNumber, lineLength, line.lineNumber, lineLength),
             renderOptions: {
-                after: {
+                before: {
                     contentText: contentText,
                     color: color,
                     fontStyle: fontStyle,

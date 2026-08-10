@@ -19,12 +19,12 @@ export class SharedCommentProvider implements vscode.Disposable, vscode.HoverPro
     constructor(commentManager: CommentManager) {
         this.commentManager = commentManager;
 
-        // 初始化共享注释装饰类型 - 改为行内显示
+        // 行尾用 before，与本地注释一致，并尽量排在 GitLens after 左侧
         this.decorationType = vscode.window.createTextEditorDecorationType({
-            after: {
+            before: {
                 color: '#6B7283', // 灰蓝色，与本地注释区分
                 fontStyle: 'italic',
-                margin: '0 0 0 0.8em'
+                margin: '0 0 0 2em'
             },
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         });
@@ -60,12 +60,11 @@ export class SharedCommentProvider implements vscode.Disposable, vscode.HoverPro
         // 先释放旧的装饰类型
         this.decorationType.dispose();
 
-        // 创建新的装饰类型，包含云朵图标和行内显示
         this.decorationType = vscode.window.createTextEditorDecorationType({
-            after: {
+            before: {
                 color: '#6B7283', // 灰蓝色，与本地注释区分
                 fontStyle: 'italic',
-                margin: '0 0 0 0.8em'
+                margin: '0 0 0 2em'
             },
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         });
@@ -173,11 +172,11 @@ export class SharedCommentProvider implements vscode.Disposable, vscode.HoverPro
         return {
             range: new vscode.Range(lineNumber, lineLength, lineNumber, lineLength),
             renderOptions: {
-                after: {
+                before: {
                     contentText: contentText,
                     color: '#6B7283', // 灰蓝色，与本地注释区分
                     fontStyle: 'italic',
-                    margin: '0 0 0 0.8em'
+                    margin: '0 0 0 2em'
                 }
             }
         };
