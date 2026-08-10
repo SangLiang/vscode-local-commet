@@ -252,7 +252,8 @@ export class MarkdownPreviewWebview {
                 { path: 'src/templates/common/public.js', name: 'publicJsUri' },
                 { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
                 { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' },
-                { path: 'src/templates/markdownPreview/previewFind.js', name: 'previewFindJsUri' }
+                { path: 'src/templates/markdownPreview/previewFind.js', name: 'previewFindJsUri' },
+                { path: 'src/templates/markdownPreview/previewToc.js', name: 'previewTocJsUri' }
             ]
         });
 
@@ -629,6 +630,10 @@ ${mermaidScript}
         const previewFindJsScript = previewFindJsUri
             ? '<script src="' + previewFindJsUri + '" onerror="console.error(\'previewFind.js 加载失败\')"></script>'
             : '';
+        const previewTocJsUri = resourceUris?.previewTocJsUri || '';
+        const previewTocJsScript = previewTocJsUri
+            ? '<script src="' + previewTocJsUri + '" onerror="console.error(\'previewToc.js 加载失败\')"></script>'
+            : '';
 
         const templateVariables: Record<string, string> = {
             fileName: WebviewUtils.escapeHtml(fileName),
@@ -646,6 +651,7 @@ ${mermaidScript}
             mermaidInteractJsScript: mermaidInteractJsScript,
             coreJsScript: coreJsScript,
             previewFindJsScript: previewFindJsScript,
+            previewTocJsScript: previewTocJsScript,
             cspSource: this.panel.webview.cspSource
         };
 
