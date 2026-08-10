@@ -111,6 +111,7 @@ export async function showMarkdownWebviewInput(
             highlightTheme: highlightTheme,
             customResources: [
                 { path: 'src/templates/common/public.js', name: 'publicJsUri' },
+                { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
                 { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' }
             ]
         });
@@ -632,10 +633,14 @@ function getMarkdownWebviewContent(
     contextHtml += '</div>'; // 结束context-tabs
     contextHtml += '</div>'; // 结束context-info
 
-    // 计算 publicJsScript / coreJsScript 的值
+    // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript 的值
     const publicJsUri = resourceUris?.publicJsUri || '';
     const publicJsScript = publicJsUri 
         ? `<script src="${publicJsUri}" onerror="console.error('public.js 加载失败')"></script>`
+        : '';
+    const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
+    const mermaidInteractJsScript = mermaidInteractJsUri
+        ? `<script src="${mermaidInteractJsUri}" onerror="console.error('mermaidChartInteract.js 加载失败')"></script>`
         : '';
     const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
     const coreJsScript = coreJsUri
@@ -658,6 +663,7 @@ function getMarkdownWebviewContent(
         highlightCssUri: highlightCssUri || '',
         publicJsUri: publicJsUri,
         publicJsScript: publicJsScript,
+        mermaidInteractJsScript: mermaidInteractJsScript,
         coreJsScript: coreJsScript,
         tagSuggestions: tagSuggestions,
         cspSource: webview ? webview.cspSource : "'self'", // 从webview获取CSP源

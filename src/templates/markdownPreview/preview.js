@@ -1,7 +1,8 @@
 /**
  * Markdown 文件预览 Webview 脚本
  *
- * 职责：将 Markdown 渲染为 HTML（Mermaid / KaTeX / 代码高亮），支持图表缩放拖拽，以及导出自包含 HTML。
+ * 职责：将 Markdown 渲染为 HTML（Mermaid / KaTeX / 代码高亮），TOC / 搜索 / 导出；
+ * Mermaid 缩放拖拽委托 common/mermaidChartInteract.js。
  * 渲染顺序：先异步渲染 Mermaid → KaTeX（跳过代码块）→ marked → 再把 Mermaid 占位块替换为 SVG。
  */
 (function() {
@@ -1296,7 +1297,9 @@
             }
 
             // 6. 绑定 Mermaid 缩放、拖拽
-            initChartInteractions();
+            if (window.MermaidChartInteract) {
+                window.MermaidChartInteract.initAll(previewArea, { fit: true, ensureId: false });
+            }
 
             const tagLinks = previewArea.querySelectorAll('.tag-link');
             tagLinks.forEach(link => {
@@ -1357,180 +1360,7 @@
         chart.insertBefore(zoomInfo, controls.nextSibling);
     }
 
-    // --- Mermaid 图表交互（Ctrl+滚轮缩放、拖拽平移，按钮见 window.zoomChart / resetChart）---
-
-    function initChartInteractions() {
-        const charts = document.querySelectorAll('.mermaid-chart');
-        charts.forEach(chart => {
-            const chartId = chart.dataset.chartId;
-            if (chartId) {
-                if (typeof window.fitMermaidChart === 'function') {
-                    window.fitMermaidChart(chart);
-                }
-                initChartState(chartId);
-                setupChartWheelZoom(chartId);
-                setupChartDrag(chartId);
-            }
-        });
-    }
-
-    function initChartState(chartId) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (chart) {
-            chart.dataset.scale = '1';
-            chart.dataset.translateX = '0';
-            chart.dataset.translateY = '0';
-        }
-    }
-
-    function updateChartTransform(chartId) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (chart) {
-            const scale = parseFloat(chart.dataset.scale) || 1;
-            const translateX = parseFloat(chart.dataset.translateX) || 0;
-            const translateY = parseFloat(chart.dataset.translateY) || 0;
-
-            const svg = chart.querySelector('svg');
-            if (svg) {
-                svg.style.transformOrigin = '0 0';
-                const transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
-                svg.style.transform = transform;
-            }
-
-            if (scale > 1 || translateX !== 0 || translateY !== 0) {
-                chart.classList.add('zoomed');
-            } else {
-                chart.classList.remove('zoomed');
-            }
-        }
-    }
-
-    function setupChartWheelZoom(chartId) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (!chart) return;
-
-        chart.addEventListener('wheel', (e) => {
-            if (!e.ctrlKey) return; // 与编辑器缩放区分，仅 Ctrl+滚轮缩放图表
-
-            const currentScale = parseFloat(chart.dataset.scale) || 1;
-            const svg = chart.querySelector('svg');
-            if (!svg) return;
-
-            e.preventDefault();
-
-            const rect = svg.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            const zoomIntensity = 0.0005;
-            const wheel = -e.deltaY;
-            const factor = Math.exp(wheel * zoomIntensity);
-
-            const newScale = Math.max(0.1, Math.min(5, currentScale * factor));
-            const ratio = newScale / currentScale;
-
-            const currentTranslateX = parseFloat(chart.dataset.translateX) || 0;
-            const currentTranslateY = parseFloat(chart.dataset.translateY) || 0;
-
-            const newTranslateX = mouseX * (1 - ratio) + currentTranslateX * ratio;
-            const newTranslateY = mouseY * (1 - ratio) + currentTranslateY * ratio;
-
-            chart.dataset.scale = newScale.toString();
-            chart.dataset.translateX = newTranslateX.toString();
-            chart.dataset.translateY = newTranslateY.toString();
-
-            updateChartTransform(chartId);
-
-            const zoomInfo = chart.querySelector('.mermaid-zoom-info');
-            if (zoomInfo) {
-                zoomInfo.textContent = Math.round(newScale * 100) + '%';
-            }
-        });
-    }
-
-    function setupChartDrag(chartId) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (!chart) return;
-
-        let isDragging = false;
-        let startX = 0;
-        let startY = 0;
-        let startTranslateX = 0;
-        let startTranslateY = 0;
-
-        chart.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.mermaid-controls')) return;
-
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            startTranslateX = parseFloat(chart.dataset.translateX) || 0;
-            startTranslateY = parseFloat(chart.dataset.translateY) || 0;
-
-            chart.style.cursor = 'grabbing';
-            e.preventDefault();
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
-
-            const newTranslateX = startTranslateX + deltaX;
-            const newTranslateY = startTranslateY + deltaY;
-
-            chart.dataset.translateX = newTranslateX.toString();
-            chart.dataset.translateY = newTranslateY.toString();
-            updateChartTransform(chartId);
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                chart.style.cursor = 'grab';
-            }
-        });
-
-        document.addEventListener('mouseleave', () => {
-            if (isDragging) {
-                isDragging = false;
-                chart.style.cursor = 'grab';
-            }
-        });
-    }
-
-    /** 供 Mermaid 控件按钮 onclick 调用 */
-    window.resetChart = function(chartId) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (chart) {
-            chart.dataset.scale = '1';
-            chart.dataset.translateX = '0';
-            chart.dataset.translateY = '0';
-            updateChartTransform(chartId);
-
-            const zoomInfo = chart.querySelector('.mermaid-zoom-info');
-            if (zoomInfo) {
-                zoomInfo.textContent = '100%';
-            }
-        }
-    };
-
-    window.zoomChart = function(chartId, factor) {
-        const chart = document.querySelector('[data-chart-id="' + chartId + '"]');
-        if (chart) {
-            const currentScale = parseFloat(chart.dataset.scale) || 1;
-            const newScale = Math.max(0.1, Math.min(5, currentScale * factor));
-
-            chart.dataset.scale = newScale.toString();
-            updateChartTransform(chartId);
-
-            const zoomInfo = chart.querySelector('.mermaid-zoom-info');
-            if (zoomInfo) {
-                zoomInfo.textContent = Math.round(newScale * 100) + '%';
-            }
-        }
-    };
+    // Mermaid 缩放/拖拽见 common/mermaidChartInteract.js（window.zoomChart / resetChart）
 
     // --- 预览全文搜索 ---
 

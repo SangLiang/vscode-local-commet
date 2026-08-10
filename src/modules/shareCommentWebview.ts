@@ -90,6 +90,7 @@ export async function showShareCommentWebview(
         highlightTheme: highlightTheme,
         customResources: [
             { path: 'src/templates/common/public.js', name: 'publicJsUri' },
+            { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
             { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' }
         ]
     });
@@ -357,10 +358,14 @@ function getShareCommentWebviewContent(
         contextHtml += '</div>';
     }
 
-    // 计算 publicJsScript / coreJsScript 的值
+    // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript 的值
     const publicJsUri = resourceUris?.publicJsUri || '';
     const publicJsScript = publicJsUri 
         ? `<script src="${publicJsUri}" onerror="console.error('public.js 加载失败')"></script>`
+        : '';
+    const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
+    const mermaidInteractJsScript = mermaidInteractJsUri
+        ? `<script src="${mermaidInteractJsUri}" onerror="console.error('mermaidChartInteract.js 加载失败')"></script>`
         : '';
     const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
     const coreJsScript = coreJsUri
@@ -381,6 +386,7 @@ function getShareCommentWebviewContent(
         highlightCssUri: highlightCssUri || '',
         publicJsUri: publicJsUri,
         publicJsScript: publicJsScript,
+        mermaidInteractJsScript: mermaidInteractJsScript,
         coreJsScript: coreJsScript,
         cspSource: webview ? webview.cspSource : "'self'"
     };

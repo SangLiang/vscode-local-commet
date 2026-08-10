@@ -2,7 +2,7 @@
  * Markdown 渲染核心（Webview 共用）
  *
  * 供 commentInput / shareComment 等页面调用：只负责 Markdown → HTML 字符串，
- * 不负责写入 DOM、IPC、滚动同步或 Mermaid 缩放交互（zoomChart 仍由各页面挂载）。
+ * 不负责写入 DOM、IPC、滚动同步；Mermaid 缩放交互见 mermaidChartInteract.js（zoomChart / resetChart）。
  *
  * 依赖（须先于本脚本加载）：marked、mermaid、katex；highlight 可选（via waitForHighlight）。
  *

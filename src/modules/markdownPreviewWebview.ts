@@ -250,6 +250,7 @@ export class MarkdownPreviewWebview {
             highlightTheme: highlightTheme,
             customResources: [
                 { path: 'src/templates/common/public.js', name: 'publicJsUri' },
+                { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
                 { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' }
             ]
         });
@@ -537,26 +538,17 @@ export class MarkdownPreviewWebview {
     }
 
     private getMermaidExportScript(): string {
-        const publicJsPath = path.join(
-            this.context.extensionUri.fsPath,
-            'src',
-            'templates',
-            'common',
-            'public.js'
-        );
-        const scriptPath = path.join(
-            this.context.extensionUri.fsPath,
-            'src',
-            'templates',
-            'markdownPreview',
-            'mermaidExport.js'
-        );
+        const templatesRoot = path.join(this.context.extensionUri.fsPath, 'src', 'templates');
+        const scriptFiles = [
+            path.join(templatesRoot, 'common', 'public.js'),
+            path.join(templatesRoot, 'common', 'mermaidChartInteract.js'),
+            path.join(templatesRoot, 'markdownPreview', 'mermaidExport.js')
+        ];
         const parts: string[] = [];
-        if (fs.existsSync(publicJsPath)) {
-            parts.push(fs.readFileSync(publicJsPath, 'utf8'));
-        }
-        if (fs.existsSync(scriptPath)) {
-            parts.push(fs.readFileSync(scriptPath, 'utf8'));
+        for (const scriptPath of scriptFiles) {
+            if (fs.existsSync(scriptPath)) {
+                parts.push(fs.readFileSync(scriptPath, 'utf8'));
+            }
         }
         return parts.join('\n');
     }
@@ -624,6 +616,10 @@ ${mermaidScript}
         const publicJsScript = publicJsUri
             ? '<script src="' + publicJsUri + '" onerror="console.error(\'public.js 加载失败\')"></script>'
             : '';
+        const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
+        const mermaidInteractJsScript = mermaidInteractJsUri
+            ? '<script src="' + mermaidInteractJsUri + '" onerror="console.error(\'mermaidChartInteract.js 加载失败\')"></script>'
+            : '';
         const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
         const coreJsScript = coreJsUri
             ? '<script src="' + coreJsUri + '" onerror="console.error(\'markdownRenderCore.js 加载失败\')"></script>'
@@ -642,6 +638,7 @@ ${mermaidScript}
             highlightCssUri: resourceUris.highlightCssUri || '',
             publicJsUri: publicJsUri,
             publicJsScript: publicJsScript,
+            mermaidInteractJsScript: mermaidInteractJsScript,
             coreJsScript: coreJsScript,
             cspSource: this.panel.webview.cspSource
         };
