@@ -799,21 +799,31 @@
             finalHtml = applyTagLinksInHtml(finalHtml);
             finalHtml = applyKatexInHtml(finalHtml);
 
-            // 3. 提取 Mermaid 占位块并异步渲染为 SVG
+            // 3. 提取 Mermaid 占位块并异步渲染为 SVG（definition 未变则走缓存，跳过 mermaid.render）
             const mermaidBlockInfos = extractMermaidBlocksFromHtml(finalHtml);
-            console.log('找到 ' + mermaidBlockInfos.length + ' 个Mermaid代码块');
+            let mermaidCacheHits = 0;
 
             const svgPromises = mermaidBlockInfos.map(async function(blockInfo, index) {
-                const chartId = 'mermaid-chart-' + Date.now() + '-' + index;
                 try {
-                    const { svg } = await mermaid.render(chartId, blockInfo.definition);
+                    const rendered = await renderCore.renderMermaidDefinition(blockInfo.definition, index);
+                    if (rendered.fromCache) {
+                        mermaidCacheHits++;
+                    }
+                    if (rendered.error || !rendered.svg) {
+                        return {
+                            fullMatch: blockInfo.fullMatch,
+                            sourceLine: blockInfo.sourceLine,
+                            html: '<div class="mermaid-error">图表渲染失败: ' + (rendered.error || 'unknown') +
+                                '<pre>' + blockInfo.definition + '</pre></div>'
+                        };
+                    }
                     return {
                         fullMatch: blockInfo.fullMatch,
                         sourceLine: blockInfo.sourceLine,
-                        html: renderCore.wrapMermaidChartHtml(chartId, svg)
+                        html: renderCore.wrapMermaidChartHtml(rendered.chartId, rendered.svg)
                     };
                 } catch (error) {
-                    console.error('渲染Mermaid图表失败: ' + chartId, error);
+                    console.error('渲染Mermaid图表失败:', error);
                     return {
                         fullMatch: blockInfo.fullMatch,
                         sourceLine: blockInfo.sourceLine,
@@ -824,6 +834,10 @@
             });
 
             const renderedMermaidBlocks = await Promise.all(svgPromises);
+            console.log(
+                '找到 ' + mermaidBlockInfos.length + ' 个Mermaid代码块，缓存命中 ' +
+                mermaidCacheHits + ' / ' + mermaidBlockInfos.length
+            );
 
             let finalHtmlWithSvg = finalHtml;
             for (const block of renderedMermaidBlocks) {
@@ -999,15 +1013,18 @@
             const chartDefinition = codeEl.textContent.trim();
             if (!chartDefinition) continue;
 
-            const chartId = 'mermaid-export-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
             try {
-                const { svg } = await mermaid.render(chartId, chartDefinition);
+                const rendered = await renderCore.renderMermaidDefinition(chartDefinition, 'export');
+                if (rendered.error || !rendered.svg) {
+                    console.error('导出时渲染 Mermaid 失败:', rendered.error);
+                    continue;
+                }
                 const wrapper = document.createElement('div');
-                wrapper.innerHTML = buildMermaidChartHtml(chartId, svg);
+                wrapper.innerHTML = buildMermaidChartHtml(rendered.chartId, rendered.svg);
                 const chart = wrapper.firstElementChild;
                 pre.replaceWith(chart);
             } catch (error) {
-                console.error('导出时渲染 Mermaid 失败:', chartId, error);
+                console.error('导出时渲染 Mermaid 失败:', error);
             }
         }
     }

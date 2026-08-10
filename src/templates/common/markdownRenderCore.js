@@ -12,11 +12,12 @@
  *   await core.waitForMermaid();                 // 文件预览：仅 mermaid（marked 自管）
  *   var html = await core.renderMarkdownToHtml(markdownText);
  *   core.wrapMermaidChartHtml(id, svg);          // 或 MarkdownRenderCore.wrapMermaidChartHtml
- *   core.reinitializeMermaid({ handDrawnEnabled, theme });
+ *   var r = await core.renderMermaidDefinition(def, index); // 带 definition+theme 缓存
+ *   core.reinitializeMermaid({ handDrawnEnabled, theme }); // 会清空 SVG 缓存
  *
  * 渲染顺序（勿随意调换）：
  *   1. ${标签} 占位（避免被 KaTeX 的 $ 正则误伤）
- *   2. 提取 ```mermaid，并行 mermaid.render，控件 HTML 暂存
+ *   2. 提取 ```mermaid，并行 renderMermaidDefinition（命中缓存则跳过 mermaid.render）
  *   3. KaTeX $$ / $
  *   4. 恢复标签声明 HTML
  *   5. marked.parse
@@ -25,6 +26,32 @@
  */
 (function (global) {
     'use strict';
+
+    var SVG_CACHE_MAX = 64;
+
+    /** 解码 HTML 实体（preview 从 HTML 抽出的 definition 常含 &lt; 等） */
+    function decodeHtmlEntities(text) {
+        var raw = String(text || '');
+        if (typeof document !== 'undefined') {
+            var textarea = document.createElement('textarea');
+            textarea.innerHTML = raw;
+            return textarea.value;
+        }
+        return raw
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&');
+    }
+
+    /** 统一换行并 trim，避免无意义差异打穿缓存 */
+    function normalizeMermaidDefinition(definition) {
+        return decodeHtmlEntities(definition)
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .trim();
+    }
 
     /** @param {boolean} handDrawnEnabled @param {string} [theme] */
     function buildMermaidConfig(handDrawnEnabled, theme) {
@@ -92,8 +119,111 @@
         var markedInitialized = false;
         var mermaidInitialized = false;
         var handDrawnEnabled = !!options.handDrawnEnabled;
+        var currentTheme = 'default';
         /** 缓存首次 waitForLibs，避免重复轮询 */
         var libsPromise = null;
+        /** @type {Map<string, { svg: string, renderId: string }>} */
+        var svgCache = new Map();
+        /** 同一 key 并发只渲一次 */
+        var inflightRenders = new Map();
+
+        function buildSvgCacheKey(normalizedDefinition) {
+            return (handDrawnEnabled ? '1' : '0') + '|' + (currentTheme || 'default') + '|' + normalizedDefinition;
+        }
+
+        function putSvgCache(key, entry) {
+            if (svgCache.has(key)) {
+                svgCache.delete(key);
+            }
+            svgCache.set(key, entry);
+            while (svgCache.size > SVG_CACHE_MAX) {
+                var oldest = svgCache.keys().next().value;
+                svgCache.delete(oldest);
+            }
+        }
+
+        function clearMermaidSvgCache() {
+            svgCache.clear();
+            inflightRenders.clear();
+        }
+
+        /**
+         * 缓存命中时把 SVG 内旧 renderId 换成新 chartId，避免同页多份相同图 id 冲突。
+         * @param {{ svg: string, renderId: string }} entry
+         * @param {string} newChartId
+         */
+        function adoptCachedSvg(entry, newChartId) {
+            if (!entry || !entry.svg) {
+                return '';
+            }
+            if (!entry.renderId || entry.renderId === newChartId) {
+                return entry.svg;
+            }
+            return entry.svg.split(entry.renderId).join(newChartId);
+        }
+
+        /**
+         * 按 definition(+主题/手绘) 渲染 Mermaid；未变则跳过 mermaid.render。
+         * 未命中时行为与直接 mermaid.render 一致。
+         * @param {string} definition
+         * @param {string|number} [idSuffix]
+         * @returns {Promise<{ chartId: string, svg: string, fromCache: boolean, error?: string }>}
+         */
+        async function renderMermaidDefinition(definition, idSuffix) {
+            var normalized = normalizeMermaidDefinition(definition);
+            var chartId = 'mermaid-chart-' + Date.now() + '-' +
+                (idSuffix !== undefined && idSuffix !== null ? String(idSuffix) : Math.random().toString(36).slice(2, 8));
+
+            if (!normalized) {
+                return { chartId: chartId, svg: '', fromCache: false, error: 'empty' };
+            }
+
+            if (typeof mermaid === 'undefined' || typeof mermaid.render !== 'function') {
+                return { chartId: chartId, svg: '', fromCache: false, error: 'mermaid unavailable' };
+            }
+
+            var cacheKey = buildSvgCacheKey(normalized);
+
+            try {
+                if (svgCache.has(cacheKey)) {
+                    return {
+                        chartId: chartId,
+                        svg: adoptCachedSvg(svgCache.get(cacheKey), chartId),
+                        fromCache: true
+                    };
+                }
+
+                if (inflightRenders.has(cacheKey)) {
+                    var shared = await inflightRenders.get(cacheKey);
+                    return {
+                        chartId: chartId,
+                        svg: adoptCachedSvg(shared, chartId),
+                        fromCache: true
+                    };
+                }
+
+                var renderPromise = mermaid.render(chartId, normalized).then(function (result) {
+                    var entry = { svg: result.svg, renderId: chartId };
+                    putSvgCache(cacheKey, entry);
+                    return entry;
+                });
+                inflightRenders.set(cacheKey, renderPromise);
+                try {
+                    var fresh = await renderPromise;
+                    return { chartId: chartId, svg: fresh.svg, fromCache: false };
+                } finally {
+                    inflightRenders.delete(cacheKey);
+                }
+            } catch (error) {
+                console.error('渲染Mermaid图表失败: ' + chartId, error);
+                return {
+                    chartId: chartId,
+                    svg: '',
+                    fromCache: false,
+                    error: error && error.message ? error.message : String(error)
+                };
+            }
+        }
 
         function initializeMarked() {
             if (typeof marked === 'undefined' || markedInitialized) {
@@ -155,10 +285,18 @@
             if (typeof handDrawn === 'boolean') {
                 handDrawnEnabled = handDrawn;
             }
+            if (typeof theme === 'string' && theme) {
+                currentTheme = theme;
+            } else if (handDrawnEnabled) {
+                currentTheme = 'hand-drawn';
+            } else if (typeof handDrawn === 'boolean') {
+                currentTheme = 'default';
+            }
             if (typeof mermaid === 'undefined') {
                 return false;
             }
-            mermaid.initialize(buildMermaidConfig(handDrawnEnabled, theme));
+            var mermaidTheme = currentTheme === 'hand-drawn' ? 'default' : (currentTheme || 'default');
+            mermaid.initialize(buildMermaidConfig(handDrawnEnabled, mermaidTheme));
             mermaidInitialized = true;
             return true;
         }
@@ -310,18 +448,25 @@
             // Mermaid：先渲染 SVG，围栏原文留给 marked，解析后再替换
             var mermaidRegex = /```mermaid\n([\s\S]*?)```/g;
             var mermaidBlocks = Array.from(processedContent.matchAll(mermaidRegex));
+            var mermaidCacheHits = 0;
             var renderedSvgs = await Promise.all(mermaidBlocks.map(async function (match, index) {
-                var chartDefinition = match[1].trim();
-                var chartId = 'mermaid-chart-' + Date.now() + '-' + index;
-                try {
-                    var result = await mermaid.render(chartId, chartDefinition);
-                    return wrapMermaidSvg(chartId, result.svg);
-                } catch (error) {
-                    console.error('渲染Mermaid图表失败: ' + chartId, error);
-                    return '<div class="mermaid-error">图表渲染失败: ' + error.message +
-                        '<pre>' + chartDefinition + '</pre></div>';
+                var chartDefinition = match[1];
+                var rendered = await renderMermaidDefinition(chartDefinition, index);
+                if (rendered.fromCache) {
+                    mermaidCacheHits++;
                 }
+                if (rendered.error || !rendered.svg) {
+                    return '<div class="mermaid-error">图表渲染失败: ' + (rendered.error || 'unknown') +
+                        '<pre>' + normalizeMermaidDefinition(chartDefinition) + '</pre></div>';
+                }
+                return wrapMermaidSvg(rendered.chartId, rendered.svg);
             }));
+            if (mermaidBlocks.length > 0) {
+                console.log(
+                    'MarkdownRenderCore: 找到 ' + mermaidBlocks.length +
+                    ' 个Mermaid代码块，缓存命中 ' + mermaidCacheHits + ' / ' + mermaidBlocks.length
+                );
+            }
 
             var finalContent = applyKatex(processedContent);
             tagPlaceholders.forEach(function (tagInfo, placeholder) {
@@ -352,6 +497,7 @@
             opts = opts || {};
             libsPromise = null;
             mermaidInitialized = false;
+            clearMermaidSvgCache();
             var handDrawn = !!opts.handDrawnEnabled;
             var theme = opts.theme;
             return initializeMermaid(handDrawn, theme);
@@ -362,6 +508,8 @@
             /** 仅等待 Mermaid（preview 自管 marked 初始化时用，避免覆盖行号 Renderer） */
             waitForMermaid: waitForMermaid,
             wrapMermaidChartHtml: wrapMermaidChartHtml,
+            renderMermaidDefinition: renderMermaidDefinition,
+            clearMermaidSvgCache: clearMermaidSvgCache,
             renderMarkdownToHtml: renderMarkdownToHtml,
             reinitializeMermaid: reinitializeMermaid
         };
@@ -369,6 +517,7 @@
 
     global.MarkdownRenderCore = {
         create: create,
-        wrapMermaidChartHtml: wrapMermaidChartHtml
+        wrapMermaidChartHtml: wrapMermaidChartHtml,
+        normalizeMermaidDefinition: normalizeMermaidDefinition
     };
 })(typeof window !== 'undefined' ? window : globalThis);
