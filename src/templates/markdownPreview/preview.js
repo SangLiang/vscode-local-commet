@@ -3,10 +3,11 @@
  *
  * 职责：将 Markdown 渲染为 HTML（Mermaid / KaTeX / 代码高亮），TOC / 导出；
  * Mermaid 缩放拖拽委托 mermaidChartInteract.js；全文搜索委托 previewFind.js。
- * 渲染顺序：先异步渲染 Mermaid → KaTeX（跳过代码块）→ marked → 再把 Mermaid 占位块替换为 SVG。
+ * 渲染顺序：marked 注入 data-source-line → @tag / KaTeX（跳过代码块）→ 异步渲染 Mermaid 并替换占位。
  */
 (function() {
     const vscode = acquireVsCodeApi();
+    // DOM / TOC / 操作菜单
     const previewArea = document.getElementById('previewArea');
     const previewToc = document.getElementById('previewToc');
     const previewTocList = document.getElementById('previewTocList');
@@ -41,6 +42,9 @@
 
     const renderCore = window.MarkdownRenderCore.create();
 
+    // --- 源码行号锚定：token 定位、Renderer 注入 data-source-line ---
+
+    /** 浅比较标签名列表，避免 setAvailableTags 重复触发整页重渲 */
     function tagsEqual(left, right) {
         if (!Array.isArray(left) || !Array.isArray(right)) {
             return false;
@@ -215,6 +219,7 @@
         return queue;
     }
 
+    /** 包装 marked code renderer：mermaid 保留原样，其余走 highlight.js */
     function createHighlightCodeRenderer(originalCode) {
         return function(code, language) {
             if (language === 'mermaid') {
@@ -238,11 +243,16 @@
         };
     }
 
+    /**
+     * 自定义 marked Renderer：为块级元素写入 data-source-line（0-based）。
+     * 按渲染顺序在源码中向前匹配文本；匹配失败时沿用 lastLine，保证 Alt+单击仍可近似跳转。
+     */
     function createSourceLineRenderer(markedObj, sourceContent) {
         const sourceLines = sourceContent.split(/\r?\n/);
         let currentLineIndex = 0;
         let lastLine = 0;
 
+        /** 去掉 HTML/Markdown 标记后做模糊行匹配 */
         function normalizeForMatch(text) {
             return (text || '')
                 .replace(/<[^>]+>/g, ' ')
@@ -418,6 +428,7 @@
         return renderer;
     }
 
+    /** 兼容 marked 全局 / window.marked / global.marked 多种加载方式 */
     function getMarkedObject() {
         let markedObj = typeof marked !== 'undefined' ? marked : undefined;
         if (typeof markedObj === 'undefined' && typeof window !== 'undefined') {
@@ -472,6 +483,7 @@
         }).join('');
     }
 
+    /** 临时屏蔽 pre/code，避免 KaTeX 误处理代码中的 $ */
     function maskHtmlForKatex(html) {
         const blocks = [];
         let masked = html.replace(/<pre[\s\S]*?<\/pre>/gi, function(match) {
@@ -485,6 +497,7 @@
         return { masked: masked, blocks: blocks };
     }
 
+    /** 还原 maskHtmlForKatex 屏蔽的 pre/code 块 */
     function unmaskHtmlAfterKatex(html, blocks) {
         return html.replace(/__LC_HTML_KATEX_MASK_(\d+)__/g, function(_, index) {
             return blocks[Number(index)] ?? '';
@@ -693,6 +706,7 @@
         return false;
     }
 
+    /** 轮询直至 marked 可用（最多约 5s），失败则拒绝 initializationPromise */
     function waitForMarked() {
         return new Promise((resolve, reject) => {
             const maxAttempts = 50;
@@ -712,6 +726,8 @@
         });
     }
 
+    // --- 预览更新入口 ---
+
     /** 对外入口：包装渲染任务，供导出流程等待完成 */
     async function updatePreview(content) {
         const renderTask = updatePreviewContent(content);
@@ -719,6 +735,9 @@
         return renderTask;
     }
 
+    // --- TOC：显隐 / 拖拽 / 折叠 / 滚动跟高亮 ---
+
+    /** 将 TOC 显隐、最小化、拖拽位置写入 webview state（跨消息刷新仍保留） */
     function persistTocState() {
         const prev = vscode.getState() || {};
         const next = Object.assign({}, prev, {
@@ -732,6 +751,7 @@
         vscode.setState(next);
     }
 
+    /** 最小化时隐藏面板、显示 FAB；展开时反之 */
     function applyTocMinimizedUi() {
         if (!previewToc) {
             return;
@@ -749,6 +769,7 @@
         }
     }
 
+    /** 拖拽时把面板限制在视口内，避免拖出屏幕 */
     function clampTocPosition(left, top) {
         if (!previewToc) {
             return { left: left, top: top };
@@ -763,6 +784,7 @@
         };
     }
 
+    /** 应用拖拽坐标；最小化或无坐标时清掉内联定位，交回 CSS 默认布局 */
     function applyTocPosition() {
         if (!previewToc) {
             return;
@@ -812,6 +834,7 @@
         }
     }
 
+    /** 从 webview state 恢复 TOC；无状态时默认显示且最小化 */
     function restoreTocState() {
         const state = vscode.getState();
         if (state && typeof state.showToc === 'boolean') {
@@ -835,6 +858,7 @@
         return text || '（空标题）';
     }
 
+    /** 下一项标题层级更深则视为有子节点（可折叠） */
     function tocEntryHasChildren(index) {
         if (index + 1 >= tocEntries.length) {
             return false;
@@ -842,6 +866,7 @@
         return tocEntries[index + 1].level > tocEntries[index].level;
     }
 
+    /** 任一祖先 collapsed 则本项不可见 */
     function isTocEntryVisible(index) {
         let level = tocEntries[index].level;
         for (let j = index - 1; j >= 0; j--) {
@@ -875,6 +900,7 @@
         }
     }
 
+    /** 高亮或跳转到折叠子树内标题时，自动展开其祖先 */
     function expandTocAncestors(index) {
         let level = tocEntries[index].level;
         let changed = false;
@@ -977,6 +1003,7 @@
         return !!(previewToc && e && e.target && previewToc.contains(e.target));
     }
 
+    /** 正文滚动时 rAF 合并更新当前章节高亮；目录自身滚动忽略 */
     function scheduleActiveTocUpdate(e) {
         if (isTocScrollEvent(e)) {
             return;
@@ -998,6 +1025,7 @@
         });
     }
 
+    /** 根据预览区 h1–h6 重建目录树（含 twistie 折叠） */
     function rebuildToc() {
         if (!previewTocList || !previewArea) {
             return;
@@ -1076,6 +1104,7 @@
         updateActiveTocFromScroll();
     }
 
+    /** 拖拽目录标题栏移动面板；关闭/最小化按钮不触发拖拽 */
     function initTocDrag() {
         if (!previewToc || !previewTocHeader) {
             return;
@@ -1128,6 +1157,8 @@
         });
     }
 
+    // --- 右上角操作菜单（导出等）---
+
     function applyActionMenuVisibility() {
         if (!previewActionMenu || !previewActionMenuToggle || !previewActionMenuPanel) {
             return;
@@ -1147,6 +1178,7 @@
         applyActionMenuVisibility();
     }
 
+    /** 切换菜单；点击外部区域关闭 */
     function initActionMenuControls() {
         if (!previewActionMenuToggle || !previewActionMenuPanel) {
             return;
@@ -1167,6 +1199,7 @@
         });
     }
 
+    /** 绑定 TOC 显隐/最小化/FAB、滚动跟高亮与窗口 resize */
     function initTocControls() {
         restoreTocState();
         initTocDrag();
@@ -1221,7 +1254,11 @@
         });
     }
 
-    /** 核心预览管线 */
+    /**
+     * 核心预览管线：
+     * 1) 占位保护 ${标签} → 2) marked 注入 data-source-line → 3) @tag / KaTeX
+     * → 4) 异步渲染 Mermaid 并替换占位 → 5) 写入 DOM、绑定交互与 TOC
+     */
     async function updatePreviewContent(content) {
         if (!content || content.trim() === '') {
             previewArea.innerHTML = '<p style="color: var(--vscode-descriptionForeground); text-align: center; margin-top: 40px;">暂无内容</p>';
@@ -1232,6 +1269,7 @@
         try {
             await initializationPromise;
 
+            // ${标签名} 先换成占位符，避免 marked 破坏声明语法；解析后再还原为 .tag-declaration
             const tagPlaceholders = new Map();
             let markdownInput = content.replace(/\$\{([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)\}/g, function(match, tagName) {
                 const placeholder = '__TAG_DECL_PLACEHOLDER_' + tagPlaceholders.size + '__';
@@ -1239,7 +1277,7 @@
                 return placeholder;
             });
 
-            // 1. 先对纯 Markdown 解析并注入行号（不在此步注入 @tag / KaTeX HTML，避免 marked 调用顺序错位）
+            // 1. marked 解析并注入行号（此步不注入 @tag / KaTeX HTML，避免 Renderer 调用顺序错位）
             let finalHtml = parseMarkdownWithSourceLines(markdownInput, content);
 
             tagPlaceholders.forEach(function(tagInfo, placeholder) {
@@ -1248,10 +1286,11 @@
                 );
             });
 
+            // 2. 块外后处理：标签链接与公式
             finalHtml = applyTagLinksInHtml(finalHtml);
             finalHtml = applyKatexInHtml(finalHtml);
 
-            // 2. 从 HTML 中提取 Mermaid 块并异步渲染
+            // 3. 提取 Mermaid 占位块并异步渲染为 SVG
             const mermaidBlockInfos = extractMermaidBlocksFromHtml(finalHtml);
             console.log('找到 ' + mermaidBlockInfos.length + ' 个Mermaid代码块');
 
@@ -1289,6 +1328,7 @@
                 finalHtmlWithSvg = finalHtmlWithSvg.replace(block.fullMatch, replacement);
             }
 
+            // 4. 写入 DOM 并绑定交互
             previewArea.innerHTML = finalHtmlWithSvg || '<p>预览生成失败</p>';
             console.log("预览区域已更新");
 
@@ -1296,7 +1336,7 @@
                 window.applyPreviewFontSize(previewArea, currentPreviewFontSize);
             }
 
-            // 6. 绑定 Mermaid 缩放、拖拽
+            // 5. Mermaid 缩放/拖拽、标签跳转、搜索状态、TOC
             if (window.MermaidChartInteract) {
                 window.MermaidChartInteract.initAll(previewArea, { fit: true, ensureId: false });
             }
@@ -1339,6 +1379,7 @@
         return renderCore.wrapMermaidChartHtml(chartId, svg);
     }
 
+    /** 导出克隆节点上若缺少缩放控件则补齐（交互由导出页 mermaidExport.js 接管） */
     function appendMermaidControlsToChart(chart) {
         if (chart.querySelector('.mermaid-controls')) {
             return;
@@ -1967,6 +2008,7 @@ body {
         }, remainingDelay);
     }
 
+    /** Alt+单击跳源码时忽略控件/按钮，避免误触缩放与菜单 */
     function isSourceJumpBlockedTarget(element) {
         return element.closest('.mermaid-controls')
             || element.closest('.preview-action-menu')
@@ -1974,6 +2016,7 @@ body {
             || element.closest('button');
     }
 
+    // Alt+单击带 data-source-line 的块 → 扩展侧跳转到对应源码行
     previewArea.addEventListener('click', function(e) {
         if (!e.altKey) {
             return;
@@ -2006,6 +2049,7 @@ body {
         }
     }
 
+    // --- 启动：导出按钮、菜单、TOC、搜索、首次渲染 ---
     const exportBtn = document.getElementById('exportHtmlBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {

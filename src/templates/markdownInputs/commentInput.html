@@ -23,6 +23,7 @@
                         <ul class="help-popover-list">
                             <li>支持 Markdown 语法</li>
                             <li>支持 Mermaid 流程图语法</li>
+                            <li>预览搜索：Ctrl+F / ⌘F（始终搜索预览内容）</li>
                             <li>标签：使用 <code>${标签名}</code> 声明，使用 <code>@标签名</code> 引用</li>
                             <li>LaTeX 公式：行内使用 <code>$公式$</code>，块级使用 <code>$$公式$$</code></li>
                         </ul>
@@ -73,6 +74,7 @@
     ${publicJsScript}
     ${mermaidInteractJsScript}
     ${coreJsScript}
+    ${previewFindJsScript}
     <script>
         // 将标签建议传递给主脚本
         window.tagSuggestions = '${tagSuggestions}';

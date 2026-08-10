@@ -222,8 +222,9 @@
         }
     }
 
-    function scrollToFindMatch(index) {
+    function scrollToFindMatch(index, options) {
         const matches = previewFindState.matches;
+        const shouldScroll = !options || options.scroll !== false;
         if (!matches.length) {
             updateFindStatus();
             updateFindNavButtons();
@@ -242,7 +243,7 @@
         });
 
         const currentMark = matches[normalizedIndex];
-        if (currentMark) {
+        if (shouldScroll && currentMark) {
             smoothScrollToFindMatch(currentMark);
         }
 
@@ -250,7 +251,7 @@
         updateFindNavButtons();
     }
 
-    function runPreviewFind(query, preferredIndex) {
+    function runPreviewFind(query, preferredIndex, options) {
         previewFindState.query = query;
         const matches = highlightPreviewMatches(query);
         if (!matches.length) {
@@ -259,7 +260,7 @@
             return;
         }
         const index = typeof preferredIndex === 'number' ? preferredIndex : 0;
-        scrollToFindMatch(index);
+        scrollToFindMatch(index, options);
     }
 
     function showPreviewFindBar(selectAll) {
@@ -298,11 +299,16 @@
         scrollToFindMatch(previewFindState.currentIndex + step);
     }
 
+    /** 重渲后只恢复高亮与当前项样式，不滚动，避免打断用户当前阅读位置 */
     function restoreAfterRender() {
         if (!initialized || !previewFindState.active || !previewFindState.query) {
             return;
         }
-        runPreviewFind(previewFindState.query, previewFindState.currentIndex);
+        if (findScrollAnimationId !== null) {
+            cancelAnimationFrame(findScrollAnimationId);
+            findScrollAnimationId = null;
+        }
+        runPreviewFind(previewFindState.query, previewFindState.currentIndex, { scroll: false });
     }
 
     function bindEvents() {

@@ -83,6 +83,7 @@ export async function showMarkdownWebviewInput(
                 retainContextWhenHidden: true,  // 用户切换tab时，保留状态
                 localResourceRoots: [
                     vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownInputs'),
+                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
                     vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),  // 添加 common 目录以支持 public.css
                     vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
                     vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')  // 添加 out/lib 以支持打包后的库文件
@@ -112,7 +113,8 @@ export async function showMarkdownWebviewInput(
             customResources: [
                 { path: 'src/templates/common/public.js', name: 'publicJsUri' },
                 { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
-                { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' }
+                { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' },
+                { path: 'src/templates/markdownPreview/previewFind.js', name: 'previewFindJsUri' }
             ]
         });
 
@@ -627,13 +629,20 @@ function getMarkdownWebviewContent(
     
     // Markdown预览tab内容
     contextHtml += '<div id="preview-tab" class="tab-content active">';
+    contextHtml += '<div id="previewFindBar" class="preview-find-bar" hidden>';
+    contextHtml += '<input id="previewFindInput" class="preview-find-input" type="search" placeholder="在预览中搜索..." autocomplete="off" spellcheck="false" />';
+    contextHtml += '<span id="previewFindStatus" class="preview-find-status"></span>';
+    contextHtml += '<button type="button" id="previewFindPrev" class="preview-find-btn" title="上一个 (Shift+Enter)">↑</button>';
+    contextHtml += '<button type="button" id="previewFindNext" class="preview-find-btn" title="下一个 (Enter)">↓</button>';
+    contextHtml += '<button type="button" id="previewFindClose" class="preview-find-btn preview-find-close" title="关闭 (Esc)">×</button>';
+    contextHtml += '</div>';
     contextHtml += '<div id="previewArea" class="preview-area"></div>';
     contextHtml += '</div>'; // 结束预览tab内容
     
     contextHtml += '</div>'; // 结束context-tabs
     contextHtml += '</div>'; // 结束context-info
 
-    // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript 的值
+    // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript / previewFindJsScript 的值
     const publicJsUri = resourceUris?.publicJsUri || '';
     const publicJsScript = publicJsUri 
         ? `<script src="${publicJsUri}" onerror="console.error('public.js 加载失败')"></script>`
@@ -645,6 +654,10 @@ function getMarkdownWebviewContent(
     const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
     const coreJsScript = coreJsUri
         ? `<script src="${coreJsUri}" onerror="console.error('markdownRenderCore.js 加载失败')"></script>`
+        : '';
+    const previewFindJsUri = resourceUris?.previewFindJsUri || '';
+    const previewFindJsScript = previewFindJsUri
+        ? `<script src="${previewFindJsUri}" onerror="console.error('previewFind.js 加载失败')"></script>`
         : '';
 
     // 准备模板变量
@@ -665,6 +678,7 @@ function getMarkdownWebviewContent(
         publicJsScript: publicJsScript,
         mermaidInteractJsScript: mermaidInteractJsScript,
         coreJsScript: coreJsScript,
+        previewFindJsScript: previewFindJsScript,
         tagSuggestions: tagSuggestions,
         cspSource: webview ? webview.cspSource : "'self'", // 从webview获取CSP源
         shareButtonHtml: (isUserLoggedIn && !isCommentShared) ? 

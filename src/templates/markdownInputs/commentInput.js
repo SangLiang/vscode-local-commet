@@ -180,6 +180,10 @@
             if (window.MermaidChartInteract) {
                 window.MermaidChartInteract.initAll(previewArea, { fit: true, ensureId: false });
             }
+
+            if (window.PreviewFind) {
+                window.PreviewFind.restoreAfterRender();
+            }
             
             const tagLinks = previewArea.querySelectorAll('.tag-link');
             tagLinks.forEach(link => {
@@ -858,6 +862,10 @@
     }
 
     previewArea.addEventListener('scroll', syncScrollFromPreviewToInput);
+
+    if (window.PreviewFind) {
+        window.PreviewFind.init({ previewArea: previewArea });
+    }
     
     // 恢复tab状态
     if (previousState && previousState.currentTab) {

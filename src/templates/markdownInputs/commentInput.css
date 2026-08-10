@@ -508,6 +508,93 @@ button {
     }
 }
 
+/* 预览全文搜索（与 markdownPreview/preview.css 对齐） */
+.preview-find-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    background-color: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.preview-find-bar[hidden] {
+    display: none !important;
+}
+
+.preview-find-input {
+    flex: 1;
+    min-width: 120px;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+    border-radius: 2px;
+    outline: none;
+}
+
+.preview-find-input:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+.preview-find-status {
+    flex-shrink: 0;
+    min-width: 52px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.preview-find-btn {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    background-color: var(--vscode-button-secondaryBackground, transparent);
+    border: 1px solid var(--vscode-button-border, var(--vscode-editorWidget-border));
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.preview-find-btn:hover:not(:disabled) {
+    background-color: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.preview-find-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.preview-find-close {
+    font-size: 18px;
+}
+
+#previewArea mark.preview-find-match {
+    background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+    color: inherit;
+    padding: 0;
+    border-radius: 2px;
+}
+
+#previewArea mark.preview-find-match-current {
+    background-color: var(--vscode-editor-findMatchBackground, rgba(234, 92, 0, 0.66));
+    outline: 1px solid var(--vscode-focusBorder, #007fd4);
+}
+
 /* 更新预览区域样式，适配tab布局 */
 #previewArea {
     border: 1px solid var(--vscode-input-border);
