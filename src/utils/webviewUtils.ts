@@ -39,6 +39,43 @@ export class WebviewUtils {
     // 模板缓存，避免重复读取文件
     private static templateCache: Map<string, string> = new Map();
 
+    // lib 文件路径探测缓存，避免重复 existsSync（键：extensionUri.fsPath + '\\' + 文件名）
+    private static libPathCache: Map<string, string> = new Map();
+
+    /**
+     * 解析 lib 文件路径：优先 out/lib，其次 src/lib，结果缓存避免重复探测
+     * @returns 解析出的 Uri；out/lib 与 src/lib 均不存在时返回 undefined
+     */
+    private static resolveLibPath(extensionUri: vscode.Uri, fileName: string): vscode.Uri | undefined {
+        const cacheKey = `${extensionUri.fsPath}\\${fileName}`;
+        const cached = this.libPathCache.get(cacheKey);
+        if (cached !== undefined) {
+            return cached === '' ? undefined : vscode.Uri.file(cached);
+        }
+
+        let resolved: vscode.Uri | undefined;
+        const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', fileName);
+        if (fs.existsSync(outPath.fsPath)) {
+            resolved = outPath;
+        } else {
+            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', fileName);
+            if (fs.existsSync(srcPath.fsPath)) {
+                resolved = srcPath;
+            }
+        }
+
+        this.libPathCache.set(cacheKey, resolved ? resolved.fsPath : '');
+        return resolved;
+    }
+
+    /**
+     * 解析 lib 文件路径，文件不存在时回退到 src/lib（保持原 resolveLibPath 语义）
+     */
+    private static resolveLibPathOrSrc(extensionUri: vscode.Uri, fileName: string): vscode.Uri {
+        return this.resolveLibPath(extensionUri, fileName)
+            ?? vscode.Uri.joinPath(extensionUri, 'src', 'lib', fileName);
+    }
+
     /**
      * 生成 CSP nonce（32字符的随机字符串）
      */
@@ -80,10 +117,7 @@ export class WebviewUtils {
         // 构建 marked.js URI
         if (options.markedJs) {
             // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'marked.min.js');
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'marked.min.js');
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            const markedJsPath = fs.existsSync(outPath.fsPath) ? outPath : srcPath;
+            const markedJsPath = this.resolveLibPathOrSrc(extensionUri, 'marked.min.js');
             uris.markedJsUri = webview.asWebviewUri(markedJsPath).toString();
         }
 
@@ -102,40 +136,28 @@ export class WebviewUtils {
         // 构建 mermaid.js URI
         if (options.mermaidJs) {
             // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'mermaid.min.js');
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'mermaid.min.js');
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            const mermaidJsPath = fs.existsSync(outPath.fsPath) ? outPath : srcPath;
+            const mermaidJsPath = this.resolveLibPathOrSrc(extensionUri, 'mermaid.min.js');
             uris.mermaidJsUri = webview.asWebviewUri(mermaidJsPath).toString();
         }
 
         // 构建 katex.js URI
         if (options.katexJs) {
             // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'katex.min.js');
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'katex.min.js');
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            const katexJsPath = fs.existsSync(outPath.fsPath) ? outPath : srcPath;
+            const katexJsPath = this.resolveLibPathOrSrc(extensionUri, 'katex.min.js');
             uris.katexJsUri = webview.asWebviewUri(katexJsPath).toString();
         }
 
         // 构建 katex.css URI
         if (options.katexCss) {
             // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'katex.min.css');
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'katex.min.css');
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            const katexCssPath = fs.existsSync(outPath.fsPath) ? outPath : srcPath;
+            const katexCssPath = this.resolveLibPathOrSrc(extensionUri, 'katex.min.css');
             uris.katexCssUri = webview.asWebviewUri(katexCssPath).toString();
         }
 
         // 构建 highlight.js URI
         if (options.highlightJs) {
             // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'highlight.min.js');
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'highlight.min.js');
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            const highlightJsPath = fs.existsSync(outPath.fsPath) ? outPath : srcPath;
+            const highlightJsPath = this.resolveLibPathOrSrc(extensionUri, 'highlight.min.js');
             uris.highlightJsUri = webview.asWebviewUri(highlightJsPath).toString();
         }
 
@@ -144,25 +166,11 @@ export class WebviewUtils {
             // 根据主题名称构建 CSS 文件名
             const themeName = options.highlightTheme || 'github-dark';
             const cssFileName = `${themeName}.min.css`;
-            
-            // 优先从 out/lib 加载（打包后的位置），如果不存在则从 src/lib 加载（开发环境）
-            const outPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', cssFileName);
-            const srcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', cssFileName);
-            
-            // 检查文件是否存在，优先使用 out/lib（打包后）
-            // 如果指定的主题文件不存在，回退到默认的 highlight.min.css
-            let highlightCssPath: vscode.Uri;
-            if (fs.existsSync(outPath.fsPath)) {
-                highlightCssPath = outPath;
-            } else if (fs.existsSync(srcPath.fsPath)) {
-                highlightCssPath = srcPath;
-            } else {
-                // 回退到默认文件
-                const defaultOutPath = vscode.Uri.joinPath(extensionUri, 'out', 'lib', 'highlight.min.css');
-                const defaultSrcPath = vscode.Uri.joinPath(extensionUri, 'src', 'lib', 'highlight.min.css');
-                highlightCssPath = fs.existsSync(defaultOutPath.fsPath) ? defaultOutPath : defaultSrcPath;
-            }
-            
+
+            // 优先使用主题文件（out/lib → src/lib），不存在则回退到默认的 highlight.min.css
+            const highlightCssPath = this.resolveLibPath(extensionUri, cssFileName)
+                ?? this.resolveLibPathOrSrc(extensionUri, 'highlight.min.css');
+
             uris.highlightCssUri = webview.asWebviewUri(highlightCssPath).toString();
         }
 
@@ -229,6 +237,13 @@ export class WebviewUtils {
      */
     public static clearTemplateCache(): void {
         this.templateCache.clear();
+    }
+
+    /**
+     * 清除 lib 路径探测缓存（可选，用于开发调试）
+     */
+    public static clearLibPathCache(): void {
+        this.libPathCache.clear();
     }
 }
 
