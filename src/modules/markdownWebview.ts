@@ -4,7 +4,7 @@ import { CommentManager, LocalComment } from '../managers/commentManager';
 import { ApiService, ApiRoutes } from '../apiService';
 import { ProjectManager } from '../managers/projectManager';
 import { normalizeFilePath, getErrorMessage } from '../utils/utils';
-import { WebviewUtils, ResourceUris } from '../utils/webviewUtils';
+import { WebviewUtils, ResourceUris, buildMarkdownPanelResourceOptions, buildMarkdownLocalResourceRoots, postMarkdownPreviewConfig, buildMarkdownScriptTags, buildContextHtml } from '../utils/webviewUtils';
 import { logger } from '../utils/logger';
 import { IPC_MESSAGES, COMMANDS, DELAY_TIMES } from '../constants';
 import { UpdatedContextInfo, MarkdownContextInfo, MarkdownSaveOutcome } from './command/comment';
@@ -82,13 +82,13 @@ export async function showMarkdownWebviewInput(
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,  // 用户切换tab时，保留状态
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownInputs'),
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),  // 添加 common 目录以支持 public.css
-                    vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
-                    vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')  // 添加 out/lib 以支持打包后的库文件
-                ],
+                localResourceRoots: buildMarkdownLocalResourceRoots(
+                    context.extensionUri,
+                    'markdownInputs',
+                    [
+                        vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
+                    ]
+                ),
                 // 添加对SVG的支持
                 enableCommandUris: false,
                 enableFindWidget: false
@@ -96,28 +96,11 @@ export async function showMarkdownWebviewInput(
         );
         void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
 
-        // 读取代码高亮主题配置
-        const config = vscode.workspace.getConfiguration('local-comment');
-        const highlightTheme = config.get<string>('codeHighlight.theme', 'github-dark');
-        
         // 构建资源 URI
-        const resourceUris = WebviewUtils.buildResourceUris(panel.webview, context.extensionUri, {
-            markedJs: true,
+        const resourceUris = WebviewUtils.buildResourceUris(panel.webview, context.extensionUri, buildMarkdownPanelResourceOptions({
             css: 'markdownInputs/commentInput.css',
-            js: 'markdownInputs/commentInput.js',
-            mermaidJs: true,
-            katexJs: true,
-            katexCss: true,
-            highlightJs: true,
-            highlightCss: true,
-            highlightTheme: highlightTheme,
-            customResources: [
-                { path: 'src/templates/common/public.js', name: 'publicJsUri' },
-                { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
-                { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' },
-                { path: 'src/templates/markdownPreview/previewFind.js', name: 'previewFindJsUri' }
-            ]
-        });
+            js: 'markdownInputs/commentInput.js'
+        }));
 
         // 优化：先显示面板，使用空的标签建议，后续异步加载
         const tagSuggestions = ''; // 先使用空字符串，后续异步更新
@@ -152,58 +135,19 @@ export async function showMarkdownWebviewInput(
                     // 并行加载标签建议和代码上下文
                     const promises: Promise<void | boolean>[] = [];
                     
-                    // 加载标签建议
+                    // 加载标签建议并推送通用配置（mermaid 主题 / 字号 / 可用标签 / 标签建议）
                     promises.push(
                         Promise.resolve().then(() => {
                             const tagManager = new TagManager();
                             tagManager.updateTags(commentManager.getAllComments());
                             const availableTagNames = tagManager.getAvailableTagNames();
                             const asyncTagSuggestions = availableTagNames.map(tag => `@${tag}`).join(',');
-                            
-                            // 向webview发送标签建议数据
-                            panel.webview.postMessage({
-                                command: IPC_MESSAGES.UPDATE_TAG_SUGGESTIONS,
+
+                            postMarkdownPreviewConfig(panel.webview, {
+                                sendAvailableTags: true,
+                                availableTagNames,
+                                sendTagSuggestions: true,
                                 tagSuggestions: asyncTagSuggestions
-                            });
-
-                            // 同步发送可用标签白名单，供预览精确渲染 @tag 链接（与 .md 预览一致）
-                            panel.webview.postMessage({
-                                command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
-                                tagNames: availableTagNames
-                            });
-                        })
-                    );
-
-                    // 发送Mermaid主题配置
-                    promises.push(
-                        Promise.resolve().then(() => {
-                            const config = vscode.workspace.getConfiguration('local-comment');
-                            const mermaidTheme = config.get<string>('mermaid.theme', 'default');
-                            panel.webview.postMessage({
-                                command: IPC_MESSAGES.SET_MERMAID_THEME,
-                                theme: mermaidTheme
-                            });
-                        })
-                    );
-
-                    // 发送预览字体大小配置
-                    promises.push(
-                        Promise.resolve().then(() => {
-                            const config = vscode.workspace.getConfiguration('local-comment');
-                            const previewFontSize = config.get<number>('markdownPreview.fontSize', 0);
-                            
-                            // 如果配置为 0，则使用编辑器字体大小
-                            let fontSize: number;
-                            if (previewFontSize === 0) {
-                                const editorConfig = vscode.workspace.getConfiguration('editor');
-                                fontSize = editorConfig.get<number>('fontSize', 14);
-                            } else {
-                                fontSize = previewFontSize;
-                            }
-                            
-                            panel.webview.postMessage({
-                                command: IPC_MESSAGES.SET_PREVIEW_FONT_SIZE,
-                                fontSize: fontSize
                             });
                         })
                     );
@@ -513,7 +457,7 @@ function getMarkdownWebviewContent(
     let contextHtml = '';
     contextHtml = '<div class="context-info">';
     contextHtml += '<div class="context-title">代码上下文</div>';
-    
+
     // 添加tab切换功能
     contextHtml += '<div class="context-tabs">';
     contextHtml += '<div class="tab-header">';
@@ -525,107 +469,16 @@ function getMarkdownWebviewContent(
     contextHtml += '    <button id="toggle-preview-size-btn" class="control-btn" title="编辑/预览">预览</button>';
     contextHtml += '  </div>';
     contextHtml += '</div>';
-    
+
     // 代码快照tab内容
     contextHtml += '<div id="code-tab" class="tab-content">';
-    
-    if (contextInfo) {
-        // 如果文件不存在，显示特殊提示
-        if (contextInfo.fileNotFound) {
-            contextHtml += `<div class="context-item file-not-found">
-                <span class="context-label">文件状态:</span>
-                <span class="context-value">原文件已删除或移动</span>
-            </div>`;
-            if (contextInfo.filePath) {
-                contextHtml += `<div class="context-item">
-                    <span class="context-label">原路径:</span>
-                    <span class="context-value">${WebviewUtils.escapeHtml(contextInfo.filePath)}</span>
-                </div>`;
-            }
-        }
-        
-        if (contextInfo.fileName) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">文件:</span>
-                <span class="context-value">${WebviewUtils.escapeHtml(contextInfo.fileName)}</span>
-            </div>`;
-        }
-        
-        if (contextInfo.lineNumber !== undefined) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">行号:</span>
-                <span class="context-value">第 ${contextInfo.lineNumber + 1} 行</span>
-            </div>`;
-        }
-        
-        if (contextInfo.selectedText) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">选中:</span>
-                <div class="context-value">
-                    <div class="code-preview">${WebviewUtils.escapeHtml(contextInfo.selectedText)}</div>
-                </div>
-            </div>`;
-        } else if (contextInfo.contextLines && contextInfo.contextLines.length > 0) {
-            // 显示扩展的上下文信息（前后5行） - 仅当注释能匹配到代码时
-            contextHtml += `<div class="context-item">
-                <span class="context-label">代码上下文:</span>
-                <div class="context-value">
-                    <div class="code-context-preview">`;
-            
-            contextInfo.contextLines.forEach((line, index) => {
-                const currentLineNumber = (contextInfo.contextStartLine || 0) + index;
-                const isTargetLine = currentLineNumber === contextInfo.lineNumber;
-                const lineClass = isTargetLine ? 'target-line' : 'context-line';
-                const lineNumberDisplay = currentLineNumber + 1;
-                
-                contextHtml += `<div class="code-line ${lineClass}">
-                    <span class="line-number">${lineNumberDisplay}</span>
-                    <span class="line-content">${WebviewUtils.escapeHtml(line)}</span>
-                </div>`;
-            });
-            
-            contextHtml += `    </div>
-                </div>
-            </div>`;
-            
-            // 如果当前代码与快照不同，额外显示当前代码
-            if (contextInfo.lineContent && contextInfo.lineContent !== contextInfo.originalLineContent) {
-                contextHtml += `<div class="context-item">
-                    <span class="context-label">当前代码:</span>
-                    <div class="context-value">
-                        <div class="code-preview current-code">${WebviewUtils.escapeHtml(contextInfo.lineContent)}</div>
-                    </div>
-                </div>`;
-            }
-        } else if (contextInfo.lineContent && !contextInfo.originalLineContent) {
-            // 如果没有快照但有当前内容，显示当前内容（新注释场景）
-            contextHtml += `<div class="context-item">
-                <span class="context-label">当前代码:</span>
-                <div class="context-value">
-                    <div class="code-preview current-code">${WebviewUtils.escapeHtml(contextInfo.lineContent)}</div>
-                </div>
-            </div>`;
-        } else if (contextInfo.originalLineContent && !contextInfo.contextLines) {
-            // 注释无法匹配到代码时，只显示注释保存的代码快照
-            const snapshotLabel = contextInfo.fileNotFound ? '代码快照 (原文件已删除)' : '注释快照';
-            contextHtml += `<div class="context-item">
-                <span class="context-label">${snapshotLabel}:</span>
-                <div class="context-value">
-                    <div class="code-preview original-code">${WebviewUtils.escapeHtml(contextInfo.originalLineContent)}</div>
-                </div>
-            </div>`;
-        }
-        
-    } else {
-        // 没有上下文信息时显示提示
-        contextHtml += '<div class="context-item">';
-        contextHtml += '<span class="context-label">提示:</span>';
-        contextHtml += '<span class="context-value">暂无代码上下文信息</span>';
-        contextHtml += '</div>';
-    }
-    
+    contextHtml += buildContextHtml(contextInfo, {
+        showFileNotFound: true,
+        showSnapshotDiff: true,
+        showEmptyHint: true
+    });
     contextHtml += '</div>'; // 结束代码快照tab内容
-    
+
     // Markdown预览tab内容
     contextHtml += '<div id="preview-tab" class="tab-content active">';
     contextHtml += '<div id="previewFindBar" class="preview-find-bar" hidden>';
@@ -637,27 +490,13 @@ function getMarkdownWebviewContent(
     contextHtml += '</div>';
     contextHtml += '<div id="previewArea" class="preview-area"></div>';
     contextHtml += '</div>'; // 结束预览tab内容
-    
+
     contextHtml += '</div>'; // 结束context-tabs
     contextHtml += '</div>'; // 结束context-info
 
     // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript / previewFindJsScript 的值
+    const scriptTags = buildMarkdownScriptTags(resourceUris ?? {}, { includePreviewFind: true });
     const publicJsUri = resourceUris?.publicJsUri || '';
-    const publicJsScript = publicJsUri 
-        ? `<script src="${publicJsUri}" onerror="console.error('public.js 加载失败')"></script>`
-        : '';
-    const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
-    const mermaidInteractJsScript = mermaidInteractJsUri
-        ? `<script src="${mermaidInteractJsUri}" onerror="console.error('mermaidChartInteract.js 加载失败')"></script>`
-        : '';
-    const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
-    const coreJsScript = coreJsUri
-        ? `<script src="${coreJsUri}" onerror="console.error('markdownRenderCore.js 加载失败')"></script>`
-        : '';
-    const previewFindJsUri = resourceUris?.previewFindJsUri || '';
-    const previewFindJsScript = previewFindJsUri
-        ? `<script src="${previewFindJsUri}" onerror="console.error('previewFind.js 加载失败')"></script>`
-        : '';
 
     // 准备模板变量
     const templateVariables: Record<string, string> = {
@@ -674,13 +513,13 @@ function getMarkdownWebviewContent(
         highlightJsUri: highlightJsUri || '',
         highlightCssUri: highlightCssUri || '',
         publicJsUri: publicJsUri,
-        publicJsScript: publicJsScript,
-        mermaidInteractJsScript: mermaidInteractJsScript,
-        coreJsScript: coreJsScript,
-        previewFindJsScript: previewFindJsScript,
+        publicJsScript: scriptTags.publicJsScript,
+        mermaidInteractJsScript: scriptTags.mermaidInteractJsScript,
+        coreJsScript: scriptTags.coreJsScript,
+        previewFindJsScript: scriptTags.previewFindJsScript,
         tagSuggestions: tagSuggestions,
         cspSource: webview ? webview.cspSource : "'self'", // 从webview获取CSP源
-        shareButtonHtml: (isUserLoggedIn && !isCommentShared) ? 
+        shareButtonHtml: (isUserLoggedIn && !isCommentShared) ?
             `<button class="share-btn" onclick="share()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>

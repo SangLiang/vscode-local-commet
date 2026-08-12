@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { WebviewUtils, ResourceUris } from '../utils/webviewUtils';
+import { WebviewUtils, ResourceUris, buildMarkdownPanelResourceOptions, buildMarkdownLocalResourceRoots, postMarkdownPreviewConfig, buildMarkdownScriptTags } from '../utils/webviewUtils';
 import { logger } from '../utils/logger';
 import { VIEW_TYPES, IPC_MESSAGES, COMMANDS, DELAY_TIMES } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
@@ -184,18 +184,18 @@ export class MarkdownPreviewWebview {
         // 在当前编辑器列开新 Tab，不占侧栏列，避免与已有分屏预览布局冲突
         const viewColumn = EditorUtils.selectViewColumnForPreviewTab(activeEditor);
         // 允许加载 .md 文件所在工作区的本地图片（相对路径图片需 asWebviewUri 后才能被 CSP 放行）
-        const localResourceRoots = [
-            vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'markdownPreview'),
-            vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),
-            vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
-            vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')
-        ];
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+        const extraRoots: vscode.Uri[] = [];
         if (workspaceFolder) {
-            localResourceRoots.push(workspaceFolder.uri);
+            extraRoots.push(workspaceFolder.uri);
         } else {
-            localResourceRoots.push(vscode.Uri.file(path.dirname(filePath)));
+            extraRoots.push(vscode.Uri.file(path.dirname(filePath)));
         }
+        const localResourceRoots = buildMarkdownLocalResourceRoots(
+            context.extensionUri,
+            'markdownPreview',
+            extraRoots
+        );
         const panel = vscode.window.createWebviewPanel(
             VIEW_TYPES.MARKDOWN_PREVIEW,
             '预览: ' + fileName,
@@ -235,27 +235,14 @@ export class MarkdownPreviewWebview {
 
     private initialize(content: string, fileName: string): void {
         content = this.resolveMarkdownContent(content);
-        const config = vscode.workspace.getConfiguration('local-comment');
-        const highlightTheme = config.get<string>('codeHighlight.theme', 'github-dark');
 
-        const resourceUris = WebviewUtils.buildResourceUris(this.panel.webview, this.context.extensionUri, {
-            markedJs: true,
+        const resourceUris = WebviewUtils.buildResourceUris(this.panel.webview, this.context.extensionUri, buildMarkdownPanelResourceOptions({
             css: 'markdownPreview/preview.css',
             js: 'markdownPreview/preview.js',
-            mermaidJs: true,
-            katexJs: true,
-            katexCss: true,
-            highlightJs: true,
-            highlightCss: true,
-            highlightTheme: highlightTheme,
-            customResources: [
-                { path: 'src/templates/common/public.js', name: 'publicJsUri' },
-                { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
-                { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' },
-                { path: 'src/templates/markdownPreview/previewFind.js', name: 'previewFindJsUri' },
+            extraCustomResources: [
                 { path: 'src/templates/markdownPreview/previewToc.js', name: 'previewTocJsUri' }
             ]
-        });
+        }));
 
         this.panel.webview.html = this.getWebviewContent(content, fileName, resourceUris);
         this._lastSyncedContent = content;
@@ -265,31 +252,9 @@ export class MarkdownPreviewWebview {
         let configPostTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
             configPostTimer = undefined;
             try {
-                const config = vscode.workspace.getConfiguration('local-comment');
-                const mermaidTheme = config.get<string>('mermaid.theme', 'default');
-                this.panel.webview.postMessage({
-                    command: IPC_MESSAGES.SET_MERMAID_THEME,
-                    theme: mermaidTheme
-                });
-
-                const previewFontSize = config.get<number>('markdownPreview.fontSize', 0);
-                let fontSize: number;
-                if (previewFontSize === 0) {
-                    const editorConfig = vscode.workspace.getConfiguration('editor');
-                    fontSize = editorConfig.get<number>('fontSize', 14);
-                } else {
-                    fontSize = previewFontSize;
-                }
-
-                this.panel.webview.postMessage({
-                    command: IPC_MESSAGES.SET_PREVIEW_FONT_SIZE,
-                    fontSize: fontSize
-                });
-
-                // Webview 脚本就绪后再发配置，避免首屏渲染时 marked/mermaid 尚未加载
-                this.panel.webview.postMessage({
-                    command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
-                    tagNames: this.availableTagNames
+                postMarkdownPreviewConfig(this.panel.webview, {
+                    sendAvailableTags: true,
+                    availableTagNames: this.availableTagNames
                 });
             } catch (error) {
                 logger.error('发送配置失败:', error);
@@ -614,26 +579,10 @@ ${mermaidScript}
     private getWebviewContent(content: string, fileName: string, resourceUris: ResourceUris): string {
         const nonce = WebviewUtils.getNonce();
 
-        const publicJsUri = resourceUris?.publicJsUri || '';
-        const publicJsScript = publicJsUri
-            ? '<script src="' + publicJsUri + '" onerror="console.error(\'public.js 加载失败\')"></script>'
-            : '';
-        const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
-        const mermaidInteractJsScript = mermaidInteractJsUri
-            ? '<script src="' + mermaidInteractJsUri + '" onerror="console.error(\'mermaidChartInteract.js 加载失败\')"></script>'
-            : '';
-        const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
-        const coreJsScript = coreJsUri
-            ? '<script src="' + coreJsUri + '" onerror="console.error(\'markdownRenderCore.js 加载失败\')"></script>'
-            : '';
-        const previewFindJsUri = resourceUris?.previewFindJsUri || '';
-        const previewFindJsScript = previewFindJsUri
-            ? '<script src="' + previewFindJsUri + '" onerror="console.error(\'previewFind.js 加载失败\')"></script>'
-            : '';
-        const previewTocJsUri = resourceUris?.previewTocJsUri || '';
-        const previewTocJsScript = previewTocJsUri
-            ? '<script src="' + previewTocJsUri + '" onerror="console.error(\'previewToc.js 加载失败\')"></script>'
-            : '';
+        const scriptTags = buildMarkdownScriptTags(resourceUris, {
+            includePreviewFind: true,
+            includePreviewToc: true
+        });
 
         const templateVariables: Record<string, string> = {
             fileName: WebviewUtils.escapeHtml(fileName),
@@ -646,12 +595,12 @@ ${mermaidScript}
             katexCssUri: resourceUris.katexCssUri || '',
             highlightJsUri: resourceUris.highlightJsUri || '',
             highlightCssUri: resourceUris.highlightCssUri || '',
-            publicJsUri: publicJsUri,
-            publicJsScript: publicJsScript,
-            mermaidInteractJsScript: mermaidInteractJsScript,
-            coreJsScript: coreJsScript,
-            previewFindJsScript: previewFindJsScript,
-            previewTocJsScript: previewTocJsScript,
+            publicJsUri: resourceUris.publicJsUri || '',
+            publicJsScript: scriptTags.publicJsScript,
+            mermaidInteractJsScript: scriptTags.mermaidInteractJsScript,
+            coreJsScript: scriptTags.coreJsScript,
+            previewFindJsScript: scriptTags.previewFindJsScript,
+            previewTocJsScript: scriptTags.previewTocJsScript,
             cspSource: this.panel.webview.cspSource
         };
 

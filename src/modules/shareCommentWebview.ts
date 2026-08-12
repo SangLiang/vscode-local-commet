@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { CommentManager } from '../managers/commentManager';
 import { TagManager } from '../managers/tagManager';
-import { WebviewUtils, ResourceUris } from '../utils/webviewUtils';
+import { WebviewUtils, ResourceUris, buildMarkdownPanelResourceOptions, buildMarkdownLocalResourceRoots, postMarkdownPreviewConfig, buildMarkdownScriptTags, buildContextHtml } from '../utils/webviewUtils';
 import { getErrorMessage } from '../utils/utils';
 import { logger } from '../utils/logger';
 import { VIEW_TYPES, COMMANDS, IPC_MESSAGES, DELAY_TIMES } from '../constants';
@@ -54,39 +54,22 @@ export async function showShareCommentWebview(
         {
             enableScripts: true,
             retainContextWhenHidden: true,  // 用户切换tab时，保留状态
-            localResourceRoots: [
-                vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'shareComment'),
-                vscode.Uri.joinPath(context.extensionUri, 'src', 'templates', 'common'),
-                vscode.Uri.joinPath(context.extensionUri, 'src', 'lib'),
-                vscode.Uri.joinPath(context.extensionUri, 'out', 'lib')  // 添加 out/lib 以支持打包后的库文件
-            ],
+            localResourceRoots: buildMarkdownLocalResourceRoots(
+                context.extensionUri,
+                'shareComment'
+            ),
             enableCommandUris: false,
             enableFindWidget: false
         }
     );
     void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
 
-    // 读取代码高亮主题配置
-    const config = vscode.workspace.getConfiguration('local-comment');
-    const highlightTheme = config.get<string>('codeHighlight.theme', 'github-dark');
-    
     // 构建资源 URI
-    const resourceUris = WebviewUtils.buildResourceUris(panel.webview, context.extensionUri, {
-        markedJs: true,
+    const resourceUris = WebviewUtils.buildResourceUris(panel.webview, context.extensionUri, buildMarkdownPanelResourceOptions({
         css: 'shareComment/shareComment.css',
         js: 'shareComment/shareComment.js',
-        mermaidJs: true,
-        katexJs: true,
-        katexCss: true,
-        highlightJs: true,
-        highlightCss: true,
-        highlightTheme: highlightTheme,
-        customResources: [
-            { path: 'src/templates/common/public.js', name: 'publicJsUri' },
-            { path: 'src/templates/common/mermaidChartInteract.js', name: 'mermaidChartInteractJsUri' },
-            { path: 'src/templates/common/markdownRenderCore.js', name: 'markdownRenderCoreJsUri' }
-        ]
-    });
+        includePreviewFind: false
+    }));
 
     // HTML内容
     panel.webview.html = getShareCommentWebviewContent(
@@ -109,39 +92,12 @@ export async function showShareCommentWebview(
     let configPostTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
         configPostTimer = undefined;
         try {
-            const config = vscode.workspace.getConfiguration('local-comment');
-            const mermaidTheme = config.get<string>('mermaid.theme', 'default');
-            panel.webview.postMessage({
-                command: IPC_MESSAGES.SET_MERMAID_THEME,
-                theme: mermaidTheme
+            const tagManager = new TagManager();
+            tagManager.updateTags(commentManager.getAllComments());
+            postMarkdownPreviewConfig(panel.webview, {
+                sendAvailableTags: true,
+                availableTagNames: tagManager.getAvailableTagNames()
             });
-            
-            // 发送预览字体大小配置
-            const previewFontSize = config.get<number>('markdownPreview.fontSize', 0);
-            
-            // 如果配置为 0，则使用编辑器字体大小
-            let fontSize: number;
-            if (previewFontSize === 0) {
-                const editorConfig = vscode.workspace.getConfiguration('editor');
-                fontSize = editorConfig.get<number>('fontSize', 14);
-            } else {
-                fontSize = previewFontSize;
-            }
-            
-            panel.webview.postMessage({
-                command: IPC_MESSAGES.SET_PREVIEW_FONT_SIZE,
-                fontSize: fontSize
-            });
-
-            // 发送可用标签白名单，供预览精确渲染 @tag 链接（与 .md 预览一致）
-            {
-                const tagManager = new TagManager();
-                tagManager.updateTags(commentManager.getAllComments());
-                panel.webview.postMessage({
-                    command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
-                    tagNames: tagManager.getAvailableTagNames()
-                });
-            }
         } catch (error) {
             logger.error('发送配置失败:', error);
         }
@@ -292,67 +248,13 @@ function getShareCommentWebviewContent(
     if (contextInfo) {
         contextHtml = '<div class="context-info">';
         contextHtml += '<div class="context-title">代码上下文</div>';
-        
-        if (contextInfo.fileName) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">文件:</span>
-                <span class="context-value">${WebviewUtils.escapeHtml(contextInfo.fileName)}</span>
-            </div>`;
-        }
-        
-        if (contextInfo.lineNumber !== undefined) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">行号:</span>
-                <span class="context-value">第 ${contextInfo.lineNumber + 1} 行</span>
-            </div>`;
-        }
-        
-        if (contextInfo.selectedText) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">选中:</span>
-                <div class="context-value">
-                    <div class="code-preview">${WebviewUtils.escapeHtml(contextInfo.selectedText)}</div>
-                </div>
-            </div>`;
-        } else if (contextInfo.contextLines && contextInfo.contextLines.length > 0) {
-            contextHtml += `<div class="context-item">
-                <span class="context-label">代码上下文:</span>
-                <div class="context-value">
-                    <div class="code-context-preview">`;
-            
-            contextInfo.contextLines.forEach((line, index) => {
-                const currentLineNumber = (contextInfo.contextStartLine || 0) + index;
-                const isTargetLine = currentLineNumber === contextInfo.lineNumber;
-                const lineClass = isTargetLine ? 'target-line' : 'context-line';
-                const lineNumberDisplay = currentLineNumber + 1;
-                
-                contextHtml += `<div class="code-line ${lineClass}">
-                    <span class="line-number">${lineNumberDisplay}</span>
-                    <span class="line-content">${WebviewUtils.escapeHtml(line)}</span>
-                </div>`;
-            });
-            
-            contextHtml += `    </div>
-                </div>
-            </div>`;
-        }
-        
+        contextHtml += buildContextHtml(contextInfo);
         contextHtml += '</div>';
     }
 
     // 计算 publicJsScript / mermaidInteractJsScript / coreJsScript 的值
+    const scriptTags = buildMarkdownScriptTags(resourceUris ?? {});
     const publicJsUri = resourceUris?.publicJsUri || '';
-    const publicJsScript = publicJsUri 
-        ? `<script src="${publicJsUri}" onerror="console.error('public.js 加载失败')"></script>`
-        : '';
-    const mermaidInteractJsUri = resourceUris?.mermaidChartInteractJsUri || '';
-    const mermaidInteractJsScript = mermaidInteractJsUri
-        ? `<script src="${mermaidInteractJsUri}" onerror="console.error('mermaidChartInteract.js 加载失败')"></script>`
-        : '';
-    const coreJsUri = resourceUris?.markdownRenderCoreJsUri || '';
-    const coreJsScript = coreJsUri
-        ? `<script src="${coreJsUri}" onerror="console.error('markdownRenderCore.js 加载失败')"></script>`
-        : '';
 
     // 准备模板变量
     const templateVariables: Record<string, string> = {
@@ -367,9 +269,9 @@ function getShareCommentWebviewContent(
         highlightJsUri: highlightJsUri || '',
         highlightCssUri: highlightCssUri || '',
         publicJsUri: publicJsUri,
-        publicJsScript: publicJsScript,
-        mermaidInteractJsScript: mermaidInteractJsScript,
-        coreJsScript: coreJsScript,
+        publicJsScript: scriptTags.publicJsScript,
+        mermaidInteractJsScript: scriptTags.mermaidInteractJsScript,
+        coreJsScript: scriptTags.coreJsScript,
         cspSource: webview ? webview.cspSource : "'self'"
     };
 
