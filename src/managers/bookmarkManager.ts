@@ -3,9 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../utils/logger';
 import { TimerManager } from '../utils/timerUtils';
-import { StoragePathUtils, StoragePaths, StorageConfig } from '../utils/storagePathUtils';
-import { getFirstWorkspaceFolder, getFirstWorkspacePathOrWarn } from '../utils/utils';
+import { StoragePathUtils, StoragePaths } from '../utils/storagePathUtils';
+import { getFirstWorkspacePathOrWarn } from '../utils/utils';
 import { generateId } from '../utils/idUtils';
+import { WorkspaceJsonStorageBase } from './workspaceJsonStorageBase';
 
 export interface Bookmark {
     id: string;
@@ -20,25 +21,20 @@ export interface FileBookmarks {
     [filePath: string]: Bookmark[];
 }
 
-export class BookmarkManager {
+export class BookmarkManager extends WorkspaceJsonStorageBase {
     private bookmarks: FileBookmarks = {};
-    private storageFile: string;
-    private context: vscode.ExtensionContext;
     private _onDidChangeBookmarks: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
     readonly onDidChangeBookmarks: vscode.Event<void> = this._onDidChangeBookmarks.event;
-    
+
     // 性能优化：缓存排序后的书签列表
     private _sortedBookmarksCache: Bookmark[] | null = null;
     private _cacheInvalidated = true;
-    
+
     // 定时器管理器
     private _timerManager: TimerManager = new TimerManager();
-    // 防抖保存
-
 
     constructor(context: vscode.ExtensionContext) {
-        this.context = context;
-        this.storageFile = this.getProjectStorageFile(context);
+        super(context);
         this.loadBookmarks();
 
         // 监听配置变更
@@ -60,21 +56,61 @@ export class BookmarkManager {
         context.subscriptions.push(workspaceWatcher);
     }
 
-    /**
-     * 处理工作区变化
-     */
-    private async handleWorkspaceChange(): Promise<void> {
-        // 保存当前书签数据
+    // ============== 基类差异实现 ==============
+
+    protected readonly kind = 'bookmarks' as const;
+
+    protected getConfigDir(paths: StoragePaths): string {
+        return paths.bookmarksDir;
+    }
+
+    protected getOldFile(paths: StoragePaths): string {
+        return paths.oldBookmarksFile;
+    }
+
+    protected getCurrentFile(paths: StoragePaths, workspacePath: string): string | null {
+        return StoragePathUtils.getCurrentBookmarksFile(paths, workspacePath);
+    }
+
+    protected getDefaultConfigFileName(): string {
+        return 'bookmarks.json';
+    }
+
+    protected buildDefaultEmptyData(): unknown {
+        return {};
+    }
+
+    protected getMigrationKeyPrefix(): string {
+        return 'migration_checked_bookmarks_';
+    }
+
+    protected getMigrationSuccessMessage(): string {
+        return '书签数据已迁移到项目本地存储 (.vscode/local-comment/)';
+    }
+
+    protected getMigrationFailureMessage(): string {
+        return '迁移书签失败：无法写入 .vscode/local-comment（只读或权限不足）';
+    }
+
+    protected getSwitchSuccessMessage(configFileName: string): string {
+        return `已切换到书签配置: ${configFileName}`;
+    }
+
+    protected async persistBeforeSwitch(): Promise<void> {
         await this.saveBookmarks();
-        
-        // 更新存储文件路径
-        this.storageFile = this.getProjectStorageFile(this.context);
-        
-        // 重新加载新工作区的书签数据
+    }
+
+    protected async reloadAfterSwitch(): Promise<void> {
         await this.loadBookmarks();
-        
-        this._onDidChangeBookmarks.fire();
-        logger.info('工作区已切换，书签数据已重新加载');
+    }
+
+    protected async resetDataAndLoadAfterMigration(defaultFile: string): Promise<void> {
+        this.bookmarks = {};
+        try {
+            await this.loadBookmarksFromPath(defaultFile);
+        } catch (loadErr) {
+            logger.warn('迁移后加载书签数据时出错（数据已写入新路径）:', loadErr);
+        }
     }
 
     /**
@@ -92,11 +128,22 @@ export class BookmarkManager {
         return path.join(globalStorageDir, 'local-bookmarks.json');
     }
 
+    /**
+     * 处理工作区变化
+     */
+    private async handleWorkspaceChange(): Promise<void> {
+        await this.saveBookmarks();
+        this._updateStorageFile(this.getProjectStorageFile(this._context));
+        await this.loadBookmarks();
+        this._onDidChangeBookmarks.fire();
+        logger.info('工作区已切换，书签数据已重新加载');
+    }
+
     private async loadBookmarks(): Promise<void> {
         try {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
-                await this.loadBookmarksFromPath(this.storageFile);
+                await this.loadBookmarksFromPath(this._storageFile);
                 if (Object.keys(this.bookmarks).length > 0) {
                     await this.migrateBookmarksWithLineContent();
                 }
@@ -104,7 +151,7 @@ export class BookmarkManager {
             }
 
             const workspacePath = workspaceFolders[0].uri.fsPath;
-            const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
+            const paths = StoragePathUtils.getStoragePaths(this._context, workspacePath);
 
             const currentBookmarksFile = StoragePathUtils.getCurrentBookmarksFile(paths, workspacePath);
             const hasOldComments = StoragePathUtils.fileExists(paths.oldCommentsFile);
@@ -172,66 +219,8 @@ export class BookmarkManager {
         }
     }
 
-    private async migrateToNewPath(paths: StoragePaths, workspacePath: string): Promise<void> {
-        try {
-            StoragePathUtils.ensureNewPathExists(paths);
-            if (!StoragePathUtils.fileExists(paths.oldBookmarksFile)) {
-                return;
-            }
-            const oldData = fs.readFileSync(paths.oldBookmarksFile, 'utf8');
-            const defaultBookmarksFile = path.join(paths.bookmarksDir, 'bookmarks.json');
-            fs.writeFileSync(defaultBookmarksFile, oldData);
-            const currentConfig = StoragePathUtils.loadConfig(workspacePath);
-            const config: StorageConfig = {
-                comments: currentConfig.comments || 'comments.json',
-                bookmarks: 'bookmarks.json'
-            };
-            try {
-                await StoragePathUtils.saveConfig(config);
-            } catch (configErr) {
-                // 若配置未在 package.json 注册（如旧版扩展）会抛 CodeExpectedError，数据已写入新路径，仅打日志不误报迁移失败
-                logger.warn('保存工作区配置失败（数据已写入 .vscode/local-comment/）:', configErr);
-            }
-            // 写入文件并保存配置成功即视为迁移成功；加载若失败只打日志，不误报迁移失败
-            this.bookmarks = {};
-            try {
-                await this.loadBookmarksFromPath(defaultBookmarksFile);
-            } catch (loadErr) {
-                logger.warn('迁移后加载书签数据时出错（数据已写入新路径）:', loadErr);
-            }
-            this.storageFile = defaultBookmarksFile;
-            logger.info('书签数据已迁移到默认配置文件: bookmarks.json');
-            vscode.window.showInformationMessage('书签数据已迁移到项目本地存储 (.vscode/local-comment/)');
-        } catch (error) {
-            if (StoragePathUtils.isWritePermissionError(error)) {
-                vscode.window.showErrorMessage('迁移书签失败：无法写入 .vscode/local-comment（只读或权限不足）');
-            } else {
-                logger.error('迁移书签数据失败:', error);
-                vscode.window.showErrorMessage('迁移书签数据失败，请手动迁移');
-            }
-        }
-    }
-
-    private async checkAndPromptMigration(paths: StoragePaths): Promise<void> {
-        if (StoragePathUtils.fileExists(paths.oldBookmarksFile)) {
-            const migrationKey = `migration_checked_bookmarks_${paths.oldBookmarksFile}`;
-            const alreadyChecked = this.context.globalState.get<boolean>(migrationKey, false);
-            if (!alreadyChecked) {
-                logger.info('检测到旧路径仍有书签数据，新路径数据已优先使用');
-                this.context.globalState.update(migrationKey, true);
-            }
-        }
-    }
-
-    /**
-     * 公开的迁移方法，供命令调用
-     */
-    public async migrateOldData(): Promise<void> {
-        const workspacePath = getFirstWorkspacePathOrWarn();
-        if (workspacePath === null) return;
-        const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
-        await this.migrateToNewPath(paths, workspacePath);
-    }
+    // ============== 数据迁移（委托基类） ==============
+    // migrateOldData / migrateToNewPath / checkAndPromptMigration 已在 WorkspaceJsonStorageBase。
 
     /**
      * 为现有书签添加行内容（迁移逻辑）
@@ -271,7 +260,7 @@ export class BookmarkManager {
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (workspaceFolders && workspaceFolders.length > 0) {
                 const workspacePath = workspaceFolders[0].uri.fsPath;
-                const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
+                const paths = StoragePathUtils.getStoragePaths(this._context, workspacePath);
 
                 try {
                     StoragePathUtils.ensureNewPathExists(paths);
@@ -310,14 +299,14 @@ export class BookmarkManager {
                     await StoragePathUtils.saveConfig(config);
                 }
             } else {
-                const storageDir = path.dirname(this.storageFile);
+                const storageDir = path.dirname(this._storageFile);
                 if (!fs.existsSync(storageDir)) {
                     fs.mkdirSync(storageDir, { recursive: true });
                 }
-                fs.writeFileSync(this.storageFile, JSON.stringify(dataToSave, null, 2));
+                fs.writeFileSync(this._storageFile, JSON.stringify(dataToSave, null, 2));
             }
 
-            this.storageFile = this.getProjectStorageFile(this.context);
+            this._updateStorageFile(this.getProjectStorageFile(this._context));
             this._onDidChangeBookmarks.fire();
         } catch (error) {
             logger.error('保存书签失败:', error);
@@ -499,105 +488,34 @@ export class BookmarkManager {
         }
     }
 
-    /**
-     * 获取项目信息
-     */
-    public getProjectInfo(): { name: string; path: string; storageFile: string } {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (workspaceFolders && workspaceFolders.length > 0) {
-            const workspacePath = workspaceFolders[0].uri.fsPath;
-            return {
-                name: path.basename(workspacePath),
-                path: workspacePath,
-                storageFile: this.storageFile
-            };
-        }
-        
-        return {
-            name: '未知项目',
-            path: '',
-            storageFile: this.storageFile
-        };
-    }
-
-    /**
-     * 获取存储文件路径
-     */
-    public getStorageFilePath(): string {
-        return this.storageFile;
-    }
+    // getProjectInfo / getStorageFilePath 已在 WorkspaceJsonStorageBase。
 
     /**
      * 切换到指定的书签配置文件
      */
     public async switchBookmarksConfig(configFileName: string): Promise<void> {
-        const workspacePath = getFirstWorkspacePathOrWarn();
-        if (workspacePath === null) return;
-        const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
-        const configFile = path.join(paths.bookmarksDir, configFileName);
-        if (!StoragePathUtils.fileExists(configFile)) {
-            const choice = await vscode.window.showWarningMessage(
-                `配置文件不存在: ${configFileName}\n是否创建新的配置文件？`,
-                '创建',
-                '取消'
-            );
-            if (choice === '创建') {
-                StoragePathUtils.ensureNewPathExists(paths);
-                fs.writeFileSync(configFile, JSON.stringify({}, null, 2));
-            } else {
-                return;
-            }
-        }
-        await this.saveBookmarks();
-        const config = StoragePathUtils.loadConfig(workspacePath);
-        config.bookmarks = configFileName;
-        await StoragePathUtils.saveConfig(config);
-        await this.loadBookmarks();
-        vscode.window.showInformationMessage(`已切换到书签配置: ${configFileName}`);
+        await this.switchConfig(configFileName);
     }
 
     /**
      * 列出所有可用的书签配置文件
      */
     public listAvailableBookmarksConfigs(): string[] {
-        const folder = getFirstWorkspaceFolder();
-        if (!folder) return [];
-        const workspacePath = folder.uri.fsPath;
-        const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
-        StoragePathUtils.ensureDirectoryExists(paths.bookmarksDir);
-        return StoragePathUtils.listConfigFiles(paths.bookmarksDir);
+        return this.listAvailableConfigs();
     }
 
     /**
      * 创建新的书签配置文件
      */
     public async createBookmarksConfig(configFileName: string): Promise<void> {
-        const workspacePath = getFirstWorkspacePathOrWarn();
-        if (workspacePath === null) return;
-        if (!configFileName.endsWith('.json')) {
-            configFileName += '.json';
-        }
-        const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
-        const configFile = path.join(paths.bookmarksDir, configFileName);
-        if (fs.existsSync(configFile)) {
-            vscode.window.showWarningMessage(`配置文件已存在: ${configFileName}`);
-            return;
-        }
-        StoragePathUtils.ensureNewPathExists(paths);
-        fs.writeFileSync(configFile, JSON.stringify({}, null, 2));
-        vscode.window.showInformationMessage(`已创建书签配置文件: ${configFileName}`);
+        await this.createConfig(configFileName);
     }
 
     /**
      * 获取当前使用的书签配置文件名
      */
     public getCurrentBookmarksConfig(): string {
-        const folder = getFirstWorkspaceFolder();
-        if (!folder) return 'default';
-        const workspacePath = folder.uri.fsPath;
-        const paths = StoragePathUtils.getStoragePaths(this.context, workspacePath);
-        const config = StoragePathUtils.loadConfig(workspacePath);
-        return config.bookmarks || 'bookmarks.json';
+        return this.getCurrentConfig();
     }
 
     /**
