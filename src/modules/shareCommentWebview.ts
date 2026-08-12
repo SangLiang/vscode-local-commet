@@ -9,16 +9,9 @@ import { EditorUtils } from '../utils/editorUtils';
 import { generateId } from '../utils/idUtils';
 
 
-// 全局注释管理器引用
-let globalCommentManager: CommentManager | null = null;
-
-// 设置全局注释管理器引用
-export function setCommentManager(commentManager: CommentManager) {
-    globalCommentManager = commentManager;
-}
-
 export async function showShareCommentWebview(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     markdownContent: string,
     title: string = '注释预览',
     contextInfo?: {
@@ -141,9 +134,9 @@ export async function showShareCommentWebview(
             });
 
             // 发送可用标签白名单，供预览精确渲染 @tag 链接（与 .md 预览一致）
-            if (globalCommentManager) {
+            {
                 const tagManager = new TagManager();
-                tagManager.updateTags(globalCommentManager.getAllComments());
+                tagManager.updateTags(commentManager.getAllComments());
                 panel.webview.postMessage({
                     command: IPC_MESSAGES.SET_AVAILABLE_TAGS,
                     tagNames: tagManager.getAvailableTagNames()
@@ -165,7 +158,7 @@ export async function showShareCommentWebview(
                     break;
                 case IPC_MESSAGES.EXPORT_TO_LOCAL_COMMENT:
                     // 处理导出为本地注释的请求
-                    await handleExportToLocalComment(context, resolvedContextInfo, markdownContent);
+                    await handleExportToLocalComment(context, commentManager, resolvedContextInfo, markdownContent);
                     break;
             }
         }
@@ -185,6 +178,7 @@ export async function showShareCommentWebview(
 // 处理导出为本地注释的请求
 async function handleExportToLocalComment(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     contextInfo?: {
         fileName?: string;
         lineNumber?: number;
@@ -226,56 +220,44 @@ async function handleExportToLocalComment(
             isShared: false
         };
 
-        // 获取注释管理器并添加注释
-        const commentManager = getCommentManager(context);
-        if (commentManager) {
-            // 检查该行是否已有本地注释
-            const existingLocalComment = commentManager.getLocalCommentAtLine(contextInfo.filePath, contextInfo.lineNumber);
-            
-            if (existingLocalComment) {
-                // 该行已有本地注释，询问是否覆盖
-                const overwriteChoice = await vscode.window.showWarningMessage(
-                    `第 ${contextInfo.lineNumber + 1} 行已有本地注释：\n"${existingLocalComment.content}"\n\n是否要覆盖为新的注释？`,
-                    { modal: true },
-                    '覆盖',
-                    '取消'
-                );
-                
-                if (overwriteChoice !== '覆盖') {
-                    return; // 用户选择取消
-                }
+        // 检查该行是否已有本地注释
+        const existingLocalComment = commentManager.getLocalCommentAtLine(contextInfo.filePath, contextInfo.lineNumber);
+
+        if (existingLocalComment) {
+            // 该行已有本地注释，询问是否覆盖
+            const overwriteChoice = await vscode.window.showWarningMessage(
+                `第 ${contextInfo.lineNumber + 1} 行已有本地注释：\n"${existingLocalComment.content}"\n\n是否要覆盖为新的注释？`,
+                { modal: true },
+                '覆盖',
+                '取消'
+            );
+
+            if (overwriteChoice !== '覆盖') {
+                return; // 用户选择取消
             }
-            
-            // 使用专门的方法添加注释，保留共享注释的原始lineContent
-            await commentManager.addCommentFromShared(
-                contextInfo.filePath,
-                localComment.line,
-                localComment.content,
-                localComment.lineContent,
-                localComment.originalLine,
-                localComment.isMatched,
-                true // 强制覆盖，因为用户已经确认
-            );
-
-            vscode.window.showInformationMessage(
-                `已成功将共享注释导出为本地注释！\n文件：${contextInfo.fileName || '未知文件'}\n行号：第${contextInfo.lineNumber + 1}行`
-            );
-
-            // 刷新注释显示
-            vscode.commands.executeCommand(COMMANDS.REFRESH_COMMENTS);
-        } else {
-            vscode.window.showErrorMessage('无法获取注释管理器');
         }
+
+        // 使用专门的方法添加注释，保留共享注释的原始lineContent
+        await commentManager.addCommentFromShared(
+            contextInfo.filePath,
+            localComment.line,
+            localComment.content,
+            localComment.lineContent,
+            localComment.originalLine,
+            localComment.isMatched,
+            true // 强制覆盖，因为用户已经确认
+        );
+
+        vscode.window.showInformationMessage(
+            `已成功将共享注释导出为本地注释！\n文件：${contextInfo.fileName || '未知文件'}\n行号：第${contextInfo.lineNumber + 1}行`
+        );
+
+        // 刷新注释显示
+        vscode.commands.executeCommand(COMMANDS.REFRESH_COMMENTS);
     } catch (error) {
         logger.error('导出为本地注释失败:', error);
         vscode.window.showErrorMessage(`导出失败：${getErrorMessage(error)}`);
     }
-}
-
-// 获取注释管理器
-function getCommentManager(context: vscode.ExtensionContext): CommentManager | null {
-    // 返回全局注释管理器引用
-    return globalCommentManager;
 }
 
 function getShareCommentWebviewContent(

@@ -52,6 +52,7 @@ export async function showMarkdownWebviewInput(
     context: vscode.ExtensionContext,
     prompt: string,
     projectManager: ProjectManager,
+    commentManager: CommentManager,
     placeholder: string = '',
     existingContent: string = '',
     contextInfo?: MarkdownContextInfo,
@@ -154,7 +155,6 @@ export async function showMarkdownWebviewInput(
                     // 加载标签建议
                     promises.push(
                         Promise.resolve().then(() => {
-                            const commentManager = new CommentManager(context);
                             const tagManager = new TagManager();
                             tagManager.updateTags(commentManager.getAllComments());
                             const availableTagNames = tagManager.getAvailableTagNames();
@@ -425,7 +425,6 @@ export async function showMarkdownWebviewInput(
                         if (message.tagName) {
                             try {
                                 // 使用TagManager查找tag声明
-                                const commentManager = new CommentManager(context);
                                 const tagManager = new TagManager();
                                 tagManager.updateTags(commentManager.getAllComments());
                                 

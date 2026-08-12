@@ -1187,6 +1187,7 @@ export function registerCommands(
             // 显示Webview
             await showShareCommentWebview(
                 commentManager.getContext(),
+                commentManager,
                 comment.content,
                 `共享注释预览 - ${contextInfo.fileName}:${comment.line + 1}`,
                 contextInfo

@@ -64,6 +64,7 @@ export async function openCommentEditor(options: {
             context,
             fileExists ? '修改注释内容' : '修改注释内容 (原文件已删除)',
             projectManager,
+            commentManager,
             fileExists ?
                 '支持 Markdown 语法和多行输入，使用 ${标签名} 声明标签，使用 @标签名 引用标签' :
                 '原文件已删除，但您仍可以编辑注释内容。支持 Markdown 语法和多行输入，使用 ${标签名} 声明标签，使用 @标签名 引用标签',

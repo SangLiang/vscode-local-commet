@@ -11,7 +11,6 @@ import { BookmarkDecorationProvider } from '../providers/bookmarkDecorationProvi
 import { CommentCodeLensProvider } from '../providers/commentCodeLensProvider';
 import { AuthManager } from '../managers/authManager';
 import { ProjectManager } from '../managers/projectManager';
-import { setCommentManager } from '../modules/shareCommentWebview';
 import { logger } from '../utils/logger';
 import { EditorUtils } from '../utils/editorUtils';
 
@@ -75,9 +74,6 @@ export class ExtensionContainer {
             this.sharedCommentProvider.refresh();
             this.commentCodeLensProvider.refresh();
         });
-
-        // 设置共享注释webview的全局注释管理器引用
-        setCommentManager(this.commentManager);
 
         // 初始化标签数据
         this.tagManager.updateTags(this.commentManager.getAllComments());

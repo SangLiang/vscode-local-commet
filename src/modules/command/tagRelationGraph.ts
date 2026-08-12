@@ -19,8 +19,6 @@ let navigationStack: NavigationStack = {
     visitedNodes: new Set()
 };
 
-let commentManagerInstance: CommentManager | null = null;
-
 const tagReferenceRegex = /\@([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
 
 function checkHasChildren(content: string): boolean {
@@ -40,12 +38,12 @@ function extractTagReferences(content: string): string[] {
 
 async function buildGraphData(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     centerFilePath: string,
     centerLabel: string,
     level: number
 ): Promise<GraphData | null> {
     try {
-        const commentManager = commentManagerInstance ?? new CommentManager(context);
         const tagManager = new TagManager();
         tagManager.updateTags(commentManager.getAllComments());
 
@@ -175,7 +173,6 @@ export function registerTagRelationGraphCommands(
     context: vscode.ExtensionContext,
     commentManager: CommentManager
 ): vscode.Disposable[] {
-    commentManagerInstance = commentManager;
     const disposables: vscode.Disposable[] = [];
 
     // 从文件资源管理器或编辑器触发
@@ -216,12 +213,12 @@ export function registerTagRelationGraphCommands(
                     filePath,
                     fileName,
                     async (message) => {
-                        await handleMessage(message, context, webview);
+                        await handleMessage(message, context, commentManager, webview);
                     }
                 );
 
                 // 初始加载
-                const data = await buildGraphData(context, filePath, fileName, 0);
+                const data = await buildGraphData(context, commentManager, filePath, fileName, 0);
                 if (data) {
                     webview.updateGraph(data);
                 } else {
@@ -241,28 +238,29 @@ export function registerTagRelationGraphCommands(
 async function handleMessage(
     message: TagRelationGraphMessage,
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     switch (message.command) {
         case 'expandNode':
-            await handleExpandNode(message, context, webview);
+            await handleExpandNode(message, context, commentManager, webview);
             break;
         case 'goToDefinition':
             await handleGoToDefinition(message);
             break;
         case 'navigateBack':
-            await handleNavigateBack(context, webview);
+            await handleNavigateBack(context, commentManager, webview);
             break;
         case 'resetToRoot':
-            await handleResetToRoot(context, webview);
+            await handleResetToRoot(context, commentManager, webview);
             break;
         case 'navigateToLevel':
             if (message.level !== undefined) {
-                await handleNavigateToLevel(message.level, context, webview);
+                await handleNavigateToLevel(message.level, context, commentManager, webview);
             }
             break;
         case 'refresh':
-            await handleRefresh(context, webview);
+            await handleRefresh(context, commentManager, webview);
             break;
     }
 }
@@ -270,6 +268,7 @@ async function handleMessage(
 async function handleExpandNode(
     message: TagRelationGraphMessage,
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     const nodeId = message.nodeId;
@@ -295,7 +294,7 @@ async function handleExpandNode(
     navigationStack.visitedNodes.add(nodeId);
 
     // 构建新层级的图数据
-    const data = await buildGraphData(context, filePath, label, navigationStack.items.length - 1);
+    const data = await buildGraphData(context, commentManager, filePath, label, navigationStack.items.length - 1);
     if (data) {
         webview.updateGraph(data);
     }
@@ -322,6 +321,7 @@ async function handleGoToDefinition(message: TagRelationGraphMessage): Promise<v
 
 async function handleNavigateBack(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     if (navigationStack.items.length <= 1) {
@@ -338,6 +338,7 @@ async function handleNavigateBack(
     const parentItem = navigationStack.items[navigationStack.items.length - 1];
     const data = await buildGraphData(
         context,
+        commentManager,
         parentItem.filePath,
         parentItem.label,
         navigationStack.items.length - 1
@@ -349,6 +350,7 @@ async function handleNavigateBack(
 
 async function handleResetToRoot(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     if (navigationStack.items.length === 0) {
@@ -362,7 +364,7 @@ async function handleResetToRoot(
         visitedNodes: new Set()
     };
 
-    const data = await buildGraphData(context, rootItem.filePath, rootItem.label, 0);
+    const data = await buildGraphData(context, commentManager, rootItem.filePath, rootItem.label, 0);
     if (data) {
         webview.updateGraph(data);
     }
@@ -371,6 +373,7 @@ async function handleResetToRoot(
 async function handleNavigateToLevel(
     level: number,
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     if (level < 0 || level >= navigationStack.items.length) {
@@ -385,7 +388,7 @@ async function handleNavigateToLevel(
     navigationStack.visitedNodes = newVisited;
 
     const item = navigationStack.items[level];
-    const data = await buildGraphData(context, item.filePath, item.label, level);
+    const data = await buildGraphData(context, commentManager, item.filePath, item.label, level);
     if (data) {
         webview.updateGraph(data);
     }
@@ -393,6 +396,7 @@ async function handleNavigateToLevel(
 
 async function handleRefresh(
     context: vscode.ExtensionContext,
+    commentManager: CommentManager,
     webview: TagRelationGraphWebview
 ): Promise<void> {
     if (navigationStack.items.length === 0) {
@@ -402,7 +406,7 @@ async function handleRefresh(
     const currentItem = navigationStack.items[navigationStack.items.length - 1];
     const level = navigationStack.items.length - 1;
 
-    const data = await buildGraphData(context, currentItem.filePath, currentItem.label, level);
+    const data = await buildGraphData(context, commentManager, currentItem.filePath, currentItem.label, level);
     if (data) {
         webview.updateGraph(data);
     }

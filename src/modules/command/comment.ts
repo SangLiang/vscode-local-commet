@@ -366,6 +366,7 @@ export function registerCommentCommands(
                     // 显示webview
                     await showShareCommentWebview(
                         context as vscode.ExtensionContext,
+                        commentManager,
                         targetComment.content,
                         `共享注释预览 - ${path.basename(filePath)}:${line + 1}`,
                         contextInfo
@@ -804,6 +805,7 @@ export function registerCommentCommands(
                             context!,
                             '添加多行本地注释',
                             projectManager,
+                            commentManager,
                             '支持 Markdown 语法和多行输入，使用 ${标签名} 声明标签，使用 @标签名 引用标签',
                             '',
                             {
@@ -845,6 +847,7 @@ export function registerCommentCommands(
                     context!,
                     '添加多行本地注释',
                     projectManager,
+                    commentManager,
                     '支持 Markdown 语法和多行输入，使用 $标签名 声明标签，使用 @标签名 引用标签',
                     '',
                     {
@@ -1015,6 +1018,7 @@ export function registerCommentCommands(
             }
             await showShareCommentWebview(
                 context,
+                commentManager,
                 content as string,
                 `注释预览 - ${fileName}:${lineNumber + 1}`,
                 contextInfo
