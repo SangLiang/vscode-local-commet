@@ -102,7 +102,7 @@ export class TagRelationGraphWebview {
                 ]
             }
         );
-        void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
+        void EditorUtils.ensureWebviewBesideSource(panel, sourceViewColumn, sourceGroup);
 
         const webview = new TagRelationGraphWebview(panel, context, onMessage);
         TagRelationGraphWebview.currentPanel = webview;

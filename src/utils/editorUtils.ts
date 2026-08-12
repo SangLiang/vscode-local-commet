@@ -43,30 +43,31 @@ export class EditorUtils {
 
     /**
      * Cursor 等环境可能忽略目标 ViewColumn。
-     * 仅在唯一组时新建右侧组；已有多列时把面板移到另一侧已有组，不新建第三列。
+     * 基于 panel 实际所在列判断是否需要移动，避免依赖活动组切换时序：
+     * - 仅唯一组时新建右侧组；
+     * - 已有多列且面板已落到非源列时直接返回，不触发 moveEditor*（防止标准 VS Code 下误开第三栏）；
+     * - 已有多列但面板仍落在源列（Cursor 忽略 viewColumn）时，手动移到另一侧已有组。
      */
     static async ensureWebviewBesideSource(
+        panel: vscode.WebviewPanel,
         sourceViewColumn: vscode.ViewColumn | undefined,
         sourceGroup: vscode.TabGroup = vscode.window.tabGroups.activeTabGroup
     ): Promise<void> {
         const groups = vscode.window.tabGroups.all;
-        const activeGroup = vscode.window.tabGroups.activeTabGroup;
 
         if (groups.length === 1) {
             await vscode.commands.executeCommand('workbench.action.moveEditorToNewGroupRight');
             return;
         }
 
-        const stillInSource =
-            activeGroup === sourceGroup ||
-            (sourceViewColumn !== undefined && activeGroup.viewColumn === sourceViewColumn);
-        if (!stillInSource) {
+        // 仅当面板明确仍落在源列（Cursor 等忽略 viewColumn）时才手动移动；
+        // 面板已到非源列、或位置无法确认时一律不移动，避免误开第三栏。
+        if (panel.viewColumn !== sourceViewColumn) {
             return;
         }
 
-        const activeIndex = groups.indexOf(activeGroup);
         const sourceIndex = groups.indexOf(sourceGroup);
-        const index = activeIndex >= 0 ? activeIndex : sourceIndex;
+        const index = sourceIndex >= 0 ? sourceIndex : 0;
         await vscode.commands.executeCommand(
             index <= 0
                 ? 'workbench.action.moveEditorToNextGroup'

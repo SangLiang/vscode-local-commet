@@ -94,7 +94,7 @@ export async function showMarkdownWebviewInput(
                 enableFindWidget: false
             }
         );
-        void EditorUtils.ensureWebviewBesideSource(sourceViewColumn, sourceGroup);
+        void EditorUtils.ensureWebviewBesideSource(panel, sourceViewColumn, sourceGroup);
 
         // 构建资源 URI
         const resourceUris = WebviewUtils.buildResourceUris(panel.webview, context.extensionUri, buildMarkdownPanelResourceOptions({
