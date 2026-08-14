@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AuthManager, LoginCredentials } from '../managers/authManager';
 import { WebviewUtils } from '../utils/webviewUtils';
 import { VIEW_TYPES, COMMANDS, IPC_MESSAGES } from '../constants';
+import { getErrorMessage } from '../utils/utils';
 
 export class AuthWebview {
     private static readonly viewType = VIEW_TYPES.AUTH;
@@ -103,7 +104,7 @@ export class AuthWebview {
             this._panel?.webview.postMessage({
                 command: IPC_MESSAGES.LOGIN_RESULT,
                 success: false,
-                message: '登录失败: ' + (error as Error).message
+                message: '登录失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -117,7 +118,7 @@ export class AuthWebview {
             // 通知其他组件用户已登出
             vscode.commands.executeCommand(COMMANDS.ON_USER_LOGOUT);
         } catch (error) {
-            vscode.window.showErrorMessage('登出失败: ' + (error as Error).message);
+            vscode.window.showErrorMessage('登出失败: ' + getErrorMessage(error));
         }
     }
 

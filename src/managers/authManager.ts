@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ApiRoutes, apiService } from '../apiService';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/utils';
 
 export interface UserInfo {
     id: string;
@@ -184,7 +185,7 @@ export class AuthManager {
             
             return { success: true, message: '登录成功', user };
         } catch (error) {
-            return { success: false, message: '登录失败: ' + (error as Error).message };
+            return { success: false, message: '登录失败: ' + getErrorMessage(error) };
         }
     }
 

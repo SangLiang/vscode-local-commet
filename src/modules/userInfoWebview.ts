@@ -7,6 +7,7 @@ import { TagManager } from '../managers/tagManager';
 import { ProjectManager } from '../managers/projectManager';
 import { WebviewUtils } from '../utils/webviewUtils';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/utils';
 import { DELAY_TIMES, VIEW_TYPES, COMMANDS, IPC_MESSAGES } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
 
@@ -204,7 +205,7 @@ export class UserInfoWebview {
             this._panel.webview.postMessage({
                 command: 'userInfoResult',
                 success: false,
-                message: '获取用户信息失败: ' + (error as Error).message
+                message: '获取用户信息失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -271,7 +272,7 @@ export class UserInfoWebview {
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.FETCH_SHARED_COMMENTS_RESULT,
                 success: false,
-                message: '获取项目共享注释失败: ' + (error as Error).message
+                message: '获取项目共享注释失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -317,7 +318,7 @@ export class UserInfoWebview {
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.PROJECTS_RESULT,
                 success: false,
-                message: '获取项目列表时发生错误: ' + (error as Error).message
+                message: '获取项目列表时发生错误: ' + getErrorMessage(error)
             });
         }
     }
@@ -340,7 +341,7 @@ export class UserInfoWebview {
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.LOGOUT_RESULT,
                 success: false,
-                message: '退出登录失败: ' + (error as Error).message
+                message: '退出登录失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -362,14 +363,14 @@ export class UserInfoWebview {
             }, DELAY_TIMES.PROJECT_REFRESH_AFTER_ANIMATION);
         } catch (error) {
             logger.error('关联项目失败:', error);
-            vscode.window.showErrorMessage('关联项目失败: ' + (error as Error).message);
+            vscode.window.showErrorMessage('关联项目失败: ' + getErrorMessage(error));
             
             // 通知webview关联失败
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.ASSOCIATE_PROJECT_RESULT,
                 success: false,
                 projectId: projectId,
-                message: '关联项目失败: ' + (error as Error).message
+                message: '关联项目失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -391,14 +392,14 @@ export class UserInfoWebview {
             }, DELAY_TIMES.PROJECT_REFRESH_AFTER_ANIMATION);
         } catch (error) {
             logger.error('取消关联项目失败:', error);
-            vscode.window.showErrorMessage('取消关联项目失败: ' + (error as Error).message);
+            vscode.window.showErrorMessage('取消关联项目失败: ' + getErrorMessage(error));
             
             // 通知webview取消关联失败
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.DISASSOCIATE_PROJECT_RESULT,
                 success: false,
                 projectId: projectId,
-                message: '取消关联项目失败: ' + (error as Error).message
+                message: '取消关联项目失败: ' + getErrorMessage(error)
             });
         }
     }
@@ -539,7 +540,7 @@ export class UserInfoWebview {
             this._panel.webview.postMessage({
                 command: IPC_MESSAGES.UPLOAD_AVATAR_RESULT,
                 success: false,
-                message: '头像上传失败: ' + (error as Error).message
+                message: '头像上传失败: ' + getErrorMessage(error)
             });
         }
     }
