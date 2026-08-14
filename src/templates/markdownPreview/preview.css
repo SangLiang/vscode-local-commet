@@ -22,8 +22,6 @@
 }
 
 .container {
-    max-width: 980px;
-    margin: 0 auto;
     width: 100%;
     padding: 16px 32px 32px;
     box-sizing: border-box;
