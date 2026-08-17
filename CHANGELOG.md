@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 [中文版](./CHANGELOG.zh-CN.md)
 
+## [2.1.3] - 2026-08-17
+
+### Changed
+
+- Added a relation graph for all files, allowing navigation to the file containing a referenced @tag through the graph
+
+- Grouped local comment actions into a parent menu to reduce right-click context menu clutter
+
+- Optimized some code implementations
+
+
+### Fixed
+
+- Fixed an issue where split screen did not work when opening "Input Local Comment" in editors like Cursor
+
+- Fixed an issue where SVG images displayed incorrectly when previewing .md files
+
+- Fixed an issue where images could not be displayed after exporting a Markdown file to HTML
+
+- Fixed an issue where clicking the file node itself in the relation graph did not navigate to the file
+
+- Fixed an issue where local comment content appeared too far down the line when other lens providers (e.g., GitLens) were present
+
 ## [2.1.2] - 2026-08-03
 
 ### Changed
