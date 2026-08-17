@@ -151,14 +151,27 @@ describe('EditorUtils.ensureWebviewBesideSource', () => {
     expect(mockExecuteCommand).not.toHaveBeenCalledWith('workbench.action.moveEditorToNewGroupRight');
   });
 
-  it('面板 viewColumn 缺失但已有多列时不主动移动', async () => {
+  it('面板 viewColumn 缺失但活动组已切到另一列时不主动移动', async () => {
     const left = { viewColumn: vscode.ViewColumn.One };
     const right = { viewColumn: vscode.ViewColumn.Two };
     mockTabGroupsAll.push(left, right);
+    mockActiveTabGroup = right;
     const panel = createMockPanel(undefined);
 
     await EditorUtils.ensureWebviewBesideSource(panel, vscode.ViewColumn.One, left as vscode.TabGroup);
 
     expect(mockExecuteCommand).not.toHaveBeenCalled();
+  });
+
+  it('Cursor 忽略 viewColumn 时面板仍落在源列应移到另一侧已有组', async () => {
+    const left = { viewColumn: vscode.ViewColumn.One };
+    const right = { viewColumn: vscode.ViewColumn.Two };
+    mockTabGroupsAll.push(left, right);
+    mockActiveTabGroup = left;
+    const panel = createMockPanel(vscode.ViewColumn.Two);
+
+    await EditorUtils.ensureWebviewBesideSource(panel, vscode.ViewColumn.One, left as vscode.TabGroup);
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith('workbench.action.moveEditorToNextGroup');
   });
 });

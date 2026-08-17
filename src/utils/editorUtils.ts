@@ -43,10 +43,10 @@ export class EditorUtils {
 
     /**
      * Cursor 等环境可能忽略目标 ViewColumn。
-     * 基于 panel 实际所在列判断是否需要移动，避免依赖活动组切换时序：
+     * 基于「活动组」判断面板实际落点（panel.viewColumn 在 Cursor 下可能是请求值而非实际值，不可信）：
      * - 仅唯一组时新建右侧组；
-     * - 已有多列且面板已落到非源列时直接返回，不触发 moveEditor*（防止标准 VS Code 下误开第三栏）；
-     * - 已有多列但面板仍落在源列（Cursor 忽略 viewColumn）时，手动移到另一侧已有组。
+     * - 已有多列且活动组已切到非源列时直接返回，不触发 moveEditor*（防止标准 VS Code 下误开第三栏）；
+     * - 已有多列但活动组仍在源列（Cursor 忽略 viewColumn）时，手动移到另一侧已有组。
      */
     static async ensureWebviewBesideSource(
         panel: vscode.WebviewPanel,
@@ -54,15 +54,20 @@ export class EditorUtils {
         sourceGroup: vscode.TabGroup = vscode.window.tabGroups.activeTabGroup
     ): Promise<void> {
         const groups = vscode.window.tabGroups.all;
+        const activeGroup = vscode.window.tabGroups.activeTabGroup;
 
         if (groups.length === 1) {
             await vscode.commands.executeCommand('workbench.action.moveEditorToNewGroupRight');
             return;
         }
 
-        // 仅当面板明确仍落在源列（Cursor 等忽略 viewColumn）时才手动移动；
-        // 面板已到非源列、或位置无法确认时一律不移动，避免误开第三栏。
-        if (panel.viewColumn !== sourceViewColumn) {
+        // 用 activeGroup（活动组）判断面板实际所在位置。
+        // 不能用 panel.viewColumn：在 Cursor 等环境下它可能是请求值而非实际落点，
+        // 会导致面板明明在源组却误判为已分屏、提前返回不移动。
+        const stillInSource =
+            activeGroup === sourceGroup ||
+            (sourceViewColumn !== undefined && activeGroup.viewColumn === sourceViewColumn);
+        if (!stillInSource) {
             return;
         }
 
