@@ -696,7 +696,7 @@ describe('CommentManager 注释管理器测试', () => {
   });
 
   describe('handleDocumentChange / handleDocumentSave - 智能匹配事件', () => {
-    it('Git 场景（无键盘活动）应该触发批量匹配', async () => {
+    it('外部文件更新应该触发批量匹配', async () => {
       const uri = { fsPath: TEST_FILE } as any;
       await commentManager.addComment(uri, 10, 'git scenario');
       const document = {
@@ -708,7 +708,7 @@ describe('CommentManager 注释管理器测试', () => {
 
       await commentManager.handleDocumentChange(
         { document, contentChanges: [] } as any,
-        false
+        true
       );
 
       expect(mockBatchMatchComments).toHaveBeenCalled();

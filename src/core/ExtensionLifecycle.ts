@@ -47,8 +47,7 @@ export class ExtensionLifecycle {
             this.editorEventHandler = new EditorEventHandler(this.container, this.context);
             this.documentEventHandler = new DocumentEventHandler(
                 this.container, 
-                this.context, 
-                this.editorEventHandler
+                this.context
             );
             this.authEventHandler = new AuthEventHandler(
                 this.container, 

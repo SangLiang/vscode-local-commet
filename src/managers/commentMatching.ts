@@ -17,8 +17,6 @@ import { DELAY_TIMES, COMMANDS } from '../constants';
  * 注意：本类不直接触发事件，事件由 CommentManager 协调器统一处理
  */
 export class CommentMatching {
-  private _hasKeyboardActivity = false;
-
   constructor(
     private storage: CommentStorage,
     private commentMatcher: CommentMatcher,
@@ -117,11 +115,11 @@ export class CommentMatching {
   /**
    * 处理文档变更事件
    * @param event 文档变更事件
-   * @param hasRecentKeyboardActivity 是否有最近的键盘活动（用于区分 Git 分支切换）
+   * @param isExternalChange 是否为外部文件更新（包括 Git 分支切换）
    */
   async handleDocumentChange(
     event: vscode.TextDocumentChangeEvent,
-    hasRecentKeyboardActivity: boolean = true
+    isExternalChange: boolean = false
   ): Promise<void> {
     const filePath = event.document.uri.fsPath;
     const fileComments = this.storage.getCommentsRef()[filePath];
@@ -130,12 +128,9 @@ export class CommentMatching {
       return;
     }
 
-    // 记录键盘活动状态
-    this._hasKeyboardActivity = hasRecentKeyboardActivity;
-
-    // 如果没有键盘活动，可能是Git分支切换，需要立即执行智能匹配
-    if (!hasRecentKeyboardActivity) {
-      logger.debug('检测到Git分支切换，立即执行智能匹配');
+    // 外部文件更新可能来自Git分支切换，需要立即执行全文智能匹配
+    if (isExternalChange) {
+      logger.debug('检测到外部文件更新，立即执行全文智能匹配');
       await this.performSmartMatchingForFile(event.document);
 
       // 刷新注释显示
