@@ -4,6 +4,7 @@ import { createDataUri } from '../utils/utils';
 import { logger } from '../utils/logger';
 import { COMMANDS } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
+import { extractTagsFromMarkdown, replaceTagReferencesInMarkdown } from '../utils/tagParser';
 
 export class CommentProvider implements vscode.Disposable {
     private decorationType: vscode.TextEditorDecorationType;
@@ -220,76 +221,6 @@ export class CommentProvider implements vscode.Disposable {
     // 移除共享注释装饰器方法 - 不再需要
 
     /**
-     *
-     * @param content 主要作用：将注释内容按照标签进行分割，识别出哪些是普通文本，哪些是特殊标签。
-     * 支持的标签格式：
-     * 声明标签：${标签名} （如 ${bug}、${todo}）
-     * 引用标签：@标签名 （如 @bug、@todo）
-     * @returns 返回一个数组，数组中每个元素包含文本和是否是标签的标志
-     */
-    private parseCommentIntoSegments(content: string): Array<{text: string, isTag: boolean}> {
-        const segments: Array<{text: string, isTag: boolean}> = [];
-        let lastIndex = 0;
-
-        // 匹配所有标签（声明和引用），支持中文
-        const tagRegex = /(\$\{[\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*\})|(@[\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
-        let match;
-
-        while ((match = tagRegex.exec(content)) !== null) {
-            // 添加标签前的普通文本
-            if (match.index > lastIndex) {
-                segments.push({
-                    text: content.substring(lastIndex, match.index),
-                    isTag: false
-                });
-            }
-
-            // 添加标签
-            segments.push({
-                text: match[0],
-                isTag: true
-            });
-
-            lastIndex = match.index + match[0].length;
-        }
-
-        // 添加剩余的普通文本
-        if (lastIndex < content.length) {
-            segments.push({
-                text: content.substring(lastIndex),
-                isTag: false
-            });
-        }
-
-        // 如果没有找到任何标签，返回整个内容作为普通文本
-        if (segments.length === 0) {
-            segments.push({
-                text: content,
-                isTag: false
-            });
-        }
-
-        return segments;
-    }
-
-    private extractTagsFromContent(content: string): Array<{text: string, type: 'declaration' | 'reference'}> {
-        const tags: Array<{text: string, type: 'declaration' | 'reference'}> = [];
-
-        // 匹配所有标签（声明和引用），支持中文
-        const tagRegex = /(\$\{[\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*\})|(@[\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
-        let match;
-
-        while ((match = tagRegex.exec(content)) !== null) {
-            tags.push({
-                text: match[0],
-                type: match[0].startsWith('$') ? 'declaration' : 'reference'
-            });
-        }
-
-        return tags;
-    }
-
-    /**
      * 按行号分组注释
      *
      * @param comments 注释数组
@@ -412,27 +343,16 @@ export class CommentProvider implements vscode.Disposable {
                 // 处理用户输入的转义字符
                 const processedContent = this.processMarkdownContent(comment.content);
 
-                // 将注释内容中的@标签转换为可点击的链接
-                const segments = this.parseCommentIntoSegments(processedContent);
-                let enhancedContent = '';
-
-                for (const segment of segments) {
-                    if (segment.isTag && segment.text.startsWith('@')) {
-                        // 提取标签名（去掉@符号）
-                        const tagName = segment.text.substring(1);
-                        // 创建可点击链接
-                        enhancedContent += `[${segment.text}](command:${COMMANDS.GO_TO_TAG_DECLARATION}?${encodeURIComponent(JSON.stringify({tagName}))})`;
-                    } else {
-                        // 普通文本直接添加
-                        enhancedContent += segment.text;
-                    }
-                }
+                // 按Markdown语义提取标签，并将代码以外的@标签转换为可点击链接
+                const tags = extractTagsFromMarkdown(processedContent);
+                const enhancedContent = replaceTagReferencesInMarkdown(processedContent, tags, tag =>
+                    `[${tag.text}](command:${COMMANDS.GO_TO_TAG_DECLARATION}?${encodeURIComponent(JSON.stringify({tagName: tag.tagName}))})`
+                );
 
                 markdownContent.appendMarkdown(enhancedContent);
                 markdownContent.appendMarkdown(`\n\n`);
 
                 // 添加标签信息部分并进行去重
-                const tags = this.extractTagsFromContent(comment.content);
                 if (tags.length > 0) {
                     // 使用Set进行去重
                     const declarationTags = new Set<string>();

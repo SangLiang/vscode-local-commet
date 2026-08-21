@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 [中文版](./CHANGELOG.zh-CN.md)
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed an issue where `@...` inside inline code and fenced code blocks was rendered and indexed as a tag reference
+
 ## [2.1.3] - 2026-08-17
 
 ### Changed

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { TagManager } from '../managers/tagManager';
 import { CommentManager } from '../managers/commentManager';
+import { findTagReferenceAtPosition } from '../utils/tagParser';
 
 export class TagDefinitionProvider implements vscode.DefinitionProvider {
     constructor(
@@ -43,7 +44,7 @@ export class TagDefinitionProvider implements vscode.DefinitionProvider {
         }
 
         // 查找光标位置的标签引用
-        const tagReference = this.findTagReferenceAtPosition(commentContent, relativePosition);
+        const tagReference = findTagReferenceAtPosition(commentContent, relativePosition);
         
         if (!tagReference) {
             return [];
@@ -64,24 +65,4 @@ export class TagDefinitionProvider implements vscode.DefinitionProvider {
         return [targetLocation];
     }
 
-    private findTagReferenceAtPosition(text: string, position: number): { tagName: string; start: number; end: number } | undefined {
-        // 查找所有 @标签名 的位置，支持中文
-        const regex = /@([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
-        let match;
-        
-        while ((match = regex.exec(text)) !== null) {
-            const start = match.index;
-            const end = match.index + match[0].length;
-            
-            if (position >= start && position <= end) {
-                return {
-                    tagName: match[1],
-                    start,
-                    end
-                };
-            }
-        }
-        
-        return undefined;
-    }
-} 
+}
