@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 [中文版](./CHANGELOG.zh-CN.md)
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed external document changes, including Git branch switches, not triggering immediate full-file comment matching
+
 ## [2.1.3] - 2026-08-17
 
 ### Changed

@@ -696,15 +696,17 @@ describe('CommentManager 注释管理器测试', () => {
   });
 
   describe('handleDocumentChange / handleDocumentSave - 智能匹配事件', () => {
-    it('外部文件更新应该触发批量匹配', async () => {
+    it('外部文件更新应该触发批量匹配并保存更新', async () => {
       const uri = { fsPath: TEST_FILE } as any;
       await commentManager.addComment(uri, 10, 'git scenario');
+      const commentId = commentManager.getAllComments()[TEST_FILE][0].id;
       const document = {
         uri: { fsPath: TEST_FILE },
         lineCount: 100,
         lineAt: vi.fn((line: number) => ({ text: `line ${line} content` })),
       };
-      mockBatchMatchComments.mockReturnValue(new Map());
+      mockBatchMatchComments.mockReturnValue(new Map([[commentId, 15]]));
+      mockPromisesWriteFile.mockClear();
 
       await commentManager.handleDocumentChange(
         { document, contentChanges: [] } as any,
@@ -712,6 +714,8 @@ describe('CommentManager 注释管理器测试', () => {
       );
 
       expect(mockBatchMatchComments).toHaveBeenCalled();
+      expect(commentManager.getAllComments()[TEST_FILE][0].line).toBe(15);
+      expect(mockPromisesWriteFile).toHaveBeenCalled();
     });
 
     it('文档保存时应该根据匹配结果更新注释行号', async () => {

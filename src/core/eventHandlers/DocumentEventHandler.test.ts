@@ -79,4 +79,14 @@ describe('DocumentEventHandler', () => {
         expect(handleDocumentChange).toHaveBeenCalledWith(event, false);
         handler.dispose();
     });
+
+    it('使文档恢复 clean 的 Redo 不应被当作外部文件更新', () => {
+        const { handler, handleDocumentChange } = createHandler();
+        const event = createEvent(false, vscode.TextDocumentChangeReason.Redo);
+
+        (handler as any).handleDocumentChange(event);
+
+        expect(handleDocumentChange).toHaveBeenCalledWith(event, false);
+        handler.dispose();
+    });
 });
