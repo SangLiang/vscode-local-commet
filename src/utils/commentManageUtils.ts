@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { FileComments, LocalComment } from '../managers/commentTypes';
+import { extractTagsFromMarkdown } from './tagParser';
 
 export interface CommentManageRow {
   id: string;
@@ -12,15 +13,10 @@ export interface CommentManageRow {
   lineContent: string;
 }
 
-const TAG_DECLARATION_REGEX = /\$\{([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)\}/g;
-
 export function extractTagDeclarations(content: string): string[] {
-  const tags: string[] = [];
-  let match: RegExpExecArray | null;
-  TAG_DECLARATION_REGEX.lastIndex = 0;
-  while ((match = TAG_DECLARATION_REGEX.exec(content)) !== null) {
-    tags.push(match[1]);
-  }
+  const tags = extractTagsFromMarkdown(content)
+    .filter(tag => tag.type === 'declaration')
+    .map(tag => tag.tagName);
   return [...new Set(tags)];
 }
 

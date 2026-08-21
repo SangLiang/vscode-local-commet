@@ -7,6 +7,7 @@ import { TagRelationGraphWebview, GraphData, GraphNode, GraphEdge, BreadcrumbIte
 import { COMMANDS } from '../../constants';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../utils/utils';
+import { extractTagsFromMarkdown } from '../../utils/tagParser';
 
 // 路径堆栈用于导航
 interface NavigationStack {
@@ -19,20 +20,14 @@ let navigationStack: NavigationStack = {
     visitedNodes: new Set()
 };
 
-const tagReferenceRegex = /\@([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
-
 function checkHasChildren(content: string): boolean {
-    tagReferenceRegex.lastIndex = 0;
-    return tagReferenceRegex.test(content);
+    return extractTagsFromMarkdown(content).some(tag => tag.type === 'reference');
 }
 
 function extractTagReferences(content: string): string[] {
-    const references: string[] = [];
-    let match;
-    tagReferenceRegex.lastIndex = 0;
-    while ((match = tagReferenceRegex.exec(content)) !== null) {
-        references.push(match[1]);
-    }
+    const references = extractTagsFromMarkdown(content)
+        .filter(tag => tag.type === 'reference')
+        .map(tag => tag.tagName);
     return [...new Set(references)];
 }
 

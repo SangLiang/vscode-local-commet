@@ -57,6 +57,7 @@ describe('commentManageUtils', () => {
     expect(extractTagDeclarations('${bug} 修复问题')).toEqual(['bug']);
     expect(extractTagDeclarations('见 @foo 和 ${bar}')).toEqual(['bar']);
     expect(extractTagDeclarations('见 @foo 和 @bar_baz')).toEqual([]);
+    expect(extractTagDeclarations('`${inline}`\n```python\ntemplate = "${block}"\n```')).toEqual([]);
   });
 
   it('toCommentSummary 应截断并去除 Markdown 标题标记', () => {

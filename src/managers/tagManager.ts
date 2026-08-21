@@ -1,4 +1,5 @@
 import { LocalComment, SharedComment } from './commentTypes';
+import { extractTagsFromMarkdown } from '../utils/tagParser';
 
 export interface TagDeclaration {
     tagName: string;
@@ -35,36 +36,31 @@ export class TagManager {
     }
 
     private extractTagsFromComment(filePath: string, comment: LocalComment | SharedComment): void {
-        const content = comment.content;
+        const tags = extractTagsFromMarkdown(comment.content);
 
-        // 提取标签声明 (${标签名})，支持中文
-        const declarationRegex = /\$\{([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)\}/g;
-        let match;
-        while ((match = declarationRegex.exec(content)) !== null) {
-            const tagName = match[1];
-            const declaration: TagDeclaration = {
-                tagName,
-                filePath,
-                line: comment.line,
-                commentId: comment.id,
-                content: comment.content
-            };
-            this.tagDeclarations.set(tagName, declaration);
-        }
-
-        // 提取标签引用 (@标签名)，支持中文
-        const referenceRegex = /\@([\u4e00-\u9fa5a-zA-Z_][\u4e00-\u9fa5a-zA-Z0-9_]*)/g;
-        while ((match = referenceRegex.exec(content)) !== null) {
-            const tagName = match[1];
-            const reference: TagReference = {
-                tagName,
-                filePath,
-                line: comment.line,
-                commentId: comment.id,
-                startChar: match.index,
-                endChar: match.index + match[0].length
-            };
-            this.tagReferences.push(reference);
+        for (const tag of tags) {
+            if (tag.type === 'declaration') {
+                // 提取标签声明 (${标签名})，支持中文；Markdown代码中的内容已由解析器过滤
+                const declaration: TagDeclaration = {
+                    tagName: tag.tagName,
+                    filePath,
+                    line: comment.line,
+                    commentId: comment.id,
+                    content: comment.content
+                };
+                this.tagDeclarations.set(tag.tagName, declaration);
+            } else {
+                // 提取标签引用 (@标签名)，支持中文；保留原文位置用于查找
+                const reference: TagReference = {
+                    tagName: tag.tagName,
+                    filePath,
+                    line: comment.line,
+                    commentId: comment.id,
+                    startChar: tag.start,
+                    endChar: tag.end
+                };
+                this.tagReferences.push(reference);
+            }
         }
     }
 
@@ -96,4 +92,4 @@ export class TagManager {
             character <= ref.endChar
         );
     }
-} 
+}
