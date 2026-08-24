@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Delayed project-local comment and bookmark storage initialization until the first write, avoiding empty `.vscode/local-comment/` files when the extension is merely activated
+
 ### Fixed
 
 - Fixed an issue where `@...` inside inline code and fenced code blocks was rendered and indexed as a tag reference

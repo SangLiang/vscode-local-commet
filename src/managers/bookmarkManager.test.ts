@@ -99,6 +99,7 @@ vi.mock('../utils/storagePathUtils', () => ({
     getCurrentBookmarksFile: vi.fn(() => '/workspace/.vscode/local-comment/bookmarks/bookmarks.json'),
     fileExists: vi.fn(() => false),
     ensureNewPathExists: vi.fn(),
+    ensureNewStorageInitialized: vi.fn(),
     ensureDirectoryExists: vi.fn(),
     listConfigFiles: vi.fn(() => ['bookmarks.json']),
     loadConfig: vi.fn(() => ({ comments: 'comments.json', bookmarks: 'bookmarks.json' })),
@@ -147,6 +148,9 @@ describe('BookmarkManager 书签管理器测试', () => {
       const newManager = new BookmarkManager(mockContext as any);
       const bookmarks = newManager.getAllBookmarks();
       expect(bookmarks).toEqual({});
+      expect(mockMkdirSync).not.toHaveBeenCalled();
+      expect(mockWriteFileSync).not.toHaveBeenCalled();
+      newManager.dispose();
     });
   });
 

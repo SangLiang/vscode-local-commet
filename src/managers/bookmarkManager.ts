@@ -158,15 +158,6 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
             const hasOldBookmarks = StoragePathUtils.fileExists(paths.oldBookmarksFile);
 
             if (currentBookmarksFile) {
-                try {
-                    StoragePathUtils.ensureNewPathExists(paths);
-                } catch (err) {
-                    if (StoragePathUtils.isWritePermissionError(err)) {
-                        logger.warn('无法创建新路径目录（只读或权限不足），使用旧路径', err);
-                    } else {
-                        throw err;
-                    }
-                }
                 await this.loadBookmarksFromPath(currentBookmarksFile);
                 await this.checkAndPromptMigration(paths);
                 await this.migrateBookmarksWithLineContent();
@@ -178,21 +169,6 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
                 // 仅有旧注释无旧书签：不创建本地目录，书签为空，等用户迁移注释后再统一
                 this.bookmarks = {};
             } else {
-                // 完全没有旧数据的新项目：静默创建项目下的默认配置文件
-                try {
-                    StoragePathUtils.ensureNewPathExists(paths);
-                    const defaultFile = path.join(paths.bookmarksDir, 'bookmarks.json');
-                    fs.writeFileSync(defaultFile, JSON.stringify({}, null, 2));
-                    const config = StoragePathUtils.loadConfig(workspacePath);
-                    config.bookmarks = 'bookmarks.json';
-                    await StoragePathUtils.saveConfig(config);
-                } catch (err) {
-                    if (StoragePathUtils.isWritePermissionError(err)) {
-                        logger.warn('无法创建默认书签配置（只读或权限不足）', err);
-                    } else {
-                        throw err;
-                    }
-                }
                 this.bookmarks = {};
             }
         } catch (error) {
@@ -202,10 +178,6 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
     }
 
     private async loadBookmarksFromPath(filePath: string): Promise<void> {
-        const storageDir = path.dirname(filePath);
-        if (!fs.existsSync(storageDir)) {
-            fs.mkdirSync(storageDir, { recursive: true });
-        }
         if (fs.existsSync(filePath)) {
             const data = fs.readFileSync(filePath, 'utf8');
             try {
@@ -261,27 +233,31 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
             if (workspaceFolders && workspaceFolders.length > 0) {
                 const workspacePath = workspaceFolders[0].uri.fsPath;
                 const paths = StoragePathUtils.getStoragePaths(this._context, workspacePath);
-
-                try {
-                    StoragePathUtils.ensureNewPathExists(paths);
-                } catch (err) {
-                    if (StoragePathUtils.isWritePermissionError(err)) {
-                        if (StoragePathUtils.fileExists(paths.oldBookmarksFile)) {
-                            fs.writeFileSync(paths.oldBookmarksFile, JSON.stringify(dataToSave, null, 2));
-                        } else {
-                            vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
-                        }
-                        this._onDidChangeBookmarks.fire();
-                        return;
-                    }
-                    throw err;
-                }
-
+                const hasOldBookmarks = StoragePathUtils.fileExists(paths.oldBookmarksFile);
                 const currentBookmarksFile = StoragePathUtils.getCurrentBookmarksFile(paths, workspacePath);
 
-                if (currentBookmarksFile) {
+                if (currentBookmarksFile || !hasOldBookmarks) {
                     try {
-                        fs.writeFileSync(currentBookmarksFile, JSON.stringify(dataToSave, null, 2));
+                        await StoragePathUtils.ensureNewStorageInitialized(paths, workspacePath);
+                    } catch (err) {
+                        if (StoragePathUtils.isWritePermissionError(err)) {
+                            if (hasOldBookmarks) {
+                                fs.writeFileSync(paths.oldBookmarksFile, JSON.stringify(dataToSave, null, 2));
+                            } else {
+                                vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
+                            }
+                            this._onDidChangeBookmarks.fire();
+                            return;
+                        }
+                        throw err;
+                    }
+                }
+
+                const currentBookmarksFileAfterInit = StoragePathUtils.getCurrentBookmarksFile(paths, workspacePath);
+
+                if (currentBookmarksFileAfterInit) {
+                    try {
+                        fs.writeFileSync(currentBookmarksFileAfterInit, JSON.stringify(dataToSave, null, 2));
                     } catch (err) {
                         if (StoragePathUtils.isWritePermissionError(err) && StoragePathUtils.fileExists(paths.oldBookmarksFile)) {
                             fs.writeFileSync(paths.oldBookmarksFile, JSON.stringify(dataToSave, null, 2));
@@ -292,11 +268,7 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
                 } else if (StoragePathUtils.fileExists(paths.oldBookmarksFile)) {
                     fs.writeFileSync(paths.oldBookmarksFile, JSON.stringify(dataToSave, null, 2));
                 } else {
-                    const defaultFile = path.join(paths.bookmarksDir, 'bookmarks.json');
-                    fs.writeFileSync(defaultFile, JSON.stringify(dataToSave, null, 2));
-                    const config = StoragePathUtils.loadConfig(workspacePath);
-                    config.bookmarks = 'bookmarks.json';
-                    await StoragePathUtils.saveConfig(config);
+                    throw new Error('书签存储初始化后未找到当前配置文件');
                 }
             } else {
                 const storageDir = path.dirname(this._storageFile);
@@ -678,4 +650,4 @@ export class BookmarkManager extends WorkspaceJsonStorageBase {
         this._timerManager.dispose(); // 清理所有定时器
         this._onDidChangeBookmarks.dispose();
     }
-} 
+}

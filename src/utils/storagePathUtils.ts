@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { logger } from './logger';
 
 export interface StorageConfig {
     comments: string;
@@ -68,8 +67,6 @@ export class StoragePathUtils {
 
         const defaultFile = path.join(paths.commentsDir, 'comments.json');
         if (fs.existsSync(defaultFile)) {
-            const updatedConfig = { ...config, comments: 'comments.json' };
-            this.saveConfig(updatedConfig).catch(e => logger.error('saveConfig failed', e));
             return defaultFile;
         }
 
@@ -90,8 +87,6 @@ export class StoragePathUtils {
 
         const defaultFile = path.join(paths.bookmarksDir, 'bookmarks.json');
         if (fs.existsSync(defaultFile)) {
-            const updatedConfig = { ...config, bookmarks: 'bookmarks.json' };
-            this.saveConfig(updatedConfig).catch(e => logger.error('saveConfig failed', e));
             return defaultFile;
         }
 
@@ -157,6 +152,44 @@ export class StoragePathUtils {
         this.ensureDirectoryExists(paths.newPath);
         this.ensureDirectoryExists(paths.commentsDir);
         this.ensureDirectoryExists(paths.bookmarksDir);
+    }
+
+    /**
+     * 初始化项目级存储。仅由实际写入路径调用，读取路径不得调用此方法。
+     * 对仍存在旧全局数据的类型不创建空本地文件，避免遮蔽迁移提示。
+     */
+    static async ensureNewStorageInitialized(paths: StoragePaths, workspacePath: string): Promise<void> {
+        const config = this.loadConfig(workspacePath);
+        const configuredCommentsFile = path.join(paths.commentsDir, config.comments || 'comments.json');
+        const configuredBookmarksFile = path.join(paths.bookmarksDir, config.bookmarks || 'bookmarks.json');
+        const hasOldComments = fs.existsSync(paths.oldCommentsFile);
+        const hasOldBookmarks = fs.existsSync(paths.oldBookmarksFile);
+        const commentsNeedConfigDefault = !fs.existsSync(configuredCommentsFile) && !hasOldComments;
+        const bookmarksNeedConfigDefault = !fs.existsSync(configuredBookmarksFile) && !hasOldBookmarks;
+        const commentsDefaultFile = path.join(paths.commentsDir, 'comments.json');
+        const bookmarksDefaultFile = path.join(paths.bookmarksDir, 'bookmarks.json');
+
+        this.ensureNewPathExists(paths);
+
+        if (!hasOldComments && !fs.existsSync(commentsDefaultFile)) {
+            fs.writeFileSync(
+                commentsDefaultFile,
+                JSON.stringify({ comments: {}, shareComments: {} }, null, 2)
+            );
+        }
+        if (!hasOldBookmarks && !fs.existsSync(bookmarksDefaultFile)) {
+            fs.writeFileSync(bookmarksDefaultFile, JSON.stringify({}, null, 2));
+        }
+
+        if (commentsNeedConfigDefault) {
+            config.comments = 'comments.json';
+        }
+        if (bookmarksNeedConfigDefault) {
+            config.bookmarks = 'bookmarks.json';
+        }
+        if (commentsNeedConfigDefault || bookmarksNeedConfigDefault) {
+            await this.saveConfig(config);
+        }
     }
 
     /**

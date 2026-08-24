@@ -163,15 +163,6 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
 
       if (currentCommentsFile) {
         try {
-          StoragePathUtils.ensureNewPathExists(paths);
-        } catch (err) {
-          if (StoragePathUtils.isWritePermissionError(err)) {
-            logger.warn('无法创建新路径目录（只读或权限不足），使用旧路径', err);
-          } else {
-            throw err;
-          }
-        }
-        try {
           await this._loadCommentsFromPath(currentCommentsFile);
           await this.checkAndPromptMigration(paths);
         } catch (error) {
@@ -185,22 +176,6 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
         this._comments = {};
         this._shareComments = {};
       } else {
-        // 完全没有旧数据的新项目：静默创建项目下的默认配置文件
-        try {
-          StoragePathUtils.ensureNewPathExists(paths);
-          const defaultFile = path.join(paths.commentsDir, 'comments.json');
-          const defaultData = { comments: {}, shareComments: {} };
-          fs.writeFileSync(defaultFile, JSON.stringify(defaultData, null, 2));
-          const config = StoragePathUtils.loadConfig(workspacePath);
-          config.comments = 'comments.json';
-          await StoragePathUtils.saveConfig(config);
-        } catch (err) {
-          if (StoragePathUtils.isWritePermissionError(err)) {
-            logger.warn('无法创建默认配置（只读或权限不足）', err);
-          } else {
-            throw err;
-          }
-        }
         this._comments = {};
         this._shareComments = {};
       }
@@ -212,11 +187,6 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
   }
 
   private async _loadCommentsFromPath(filePath: string): Promise<void> {
-    const storageDir = path.dirname(filePath);
-    if (!fs.existsSync(storageDir)) {
-      fs.mkdirSync(storageDir, { recursive: true });
-    }
-
     if (fs.existsSync(filePath)) {
       try {
         const data = fs.readFileSync(filePath, 'utf8');
@@ -310,26 +280,30 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
       if (workspaceFolders && workspaceFolders.length > 0) {
         const workspacePath = workspaceFolders[0].uri.fsPath;
         const paths = StoragePathUtils.getStoragePaths(this._context, workspacePath);
-
-        try {
-          StoragePathUtils.ensureNewPathExists(paths);
-        } catch (err) {
-          if (StoragePathUtils.isWritePermissionError(err)) {
-            if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-              await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
-            } else {
-              vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
-            }
-            return;
-          }
-          throw err;
-        }
-
+        const hasOldComments = StoragePathUtils.fileExists(paths.oldCommentsFile);
         const currentCommentsFile = StoragePathUtils.getCurrentCommentsFile(paths, workspacePath);
 
-        if (currentCommentsFile) {
+        if (currentCommentsFile || !hasOldComments) {
           try {
-            await fs.promises.writeFile(currentCommentsFile, JSON.stringify(dataToSave, null, 2));
+            await StoragePathUtils.ensureNewStorageInitialized(paths, workspacePath);
+          } catch (err) {
+            if (StoragePathUtils.isWritePermissionError(err)) {
+              if (hasOldComments) {
+                await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+              } else {
+                vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
+              }
+              return;
+            }
+            throw err;
+          }
+        }
+
+        const currentCommentsFileAfterInit = StoragePathUtils.getCurrentCommentsFile(paths, workspacePath);
+
+        if (currentCommentsFileAfterInit) {
+          try {
+            await fs.promises.writeFile(currentCommentsFileAfterInit, JSON.stringify(dataToSave, null, 2));
           } catch (err) {
             if (StoragePathUtils.isWritePermissionError(err) && StoragePathUtils.fileExists(paths.oldCommentsFile)) {
               await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
@@ -340,11 +314,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
         } else if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
           await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
         } else {
-          const defaultFile = path.join(paths.commentsDir, 'comments.json');
-          await fs.promises.writeFile(defaultFile, JSON.stringify(dataToSave, null, 2));
-          const config = StoragePathUtils.loadConfig(workspacePath);
-          config.comments = 'comments.json';
-          await StoragePathUtils.saveConfig(config);
+          throw new Error('注释存储初始化后未找到当前配置文件');
         }
       } else {
         const storageDir = path.dirname(this._storageFile);
