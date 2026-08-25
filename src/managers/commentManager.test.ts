@@ -567,6 +567,18 @@ describe('CommentManager 注释管理器测试', () => {
   });
 
   describe('handleSharedCommentsByAuthStatus - 处理共享注释认证状态', () => {
+    it('未登录且没有持久化存储时不应保存清理结果', async () => {
+      const storage = (commentManager as any).storage;
+      const { StoragePathUtils } = await import('../utils/storagePathUtils');
+      storage.getShareCommentsRef()[TEST_FILE] = [makeSharedComment()];
+
+      await commentManager.handleSharedCommentsByAuthStatus(false);
+
+      expect(Object.keys(commentManager.getAllSharedComments())).toHaveLength(0);
+      expect(mockPromisesWriteFile).not.toHaveBeenCalled();
+      expect(vi.mocked(StoragePathUtils.ensureNewStorageInitialized)).not.toHaveBeenCalled();
+    });
+
     it('当未登录时应该清除所有共享注释', async () => {
       const manager = createManagerFromStorage({
         shareComments: { [TEST_FILE]: [makeSharedComment()] },
@@ -575,6 +587,7 @@ describe('CommentManager 注释管理器测试', () => {
       await manager.handleSharedCommentsByAuthStatus(false);
 
       expect(Object.keys(manager.getAllSharedComments())).toHaveLength(0);
+      expect(mockPromisesWriteFile).toHaveBeenCalled();
       manager.dispose();
     });
 

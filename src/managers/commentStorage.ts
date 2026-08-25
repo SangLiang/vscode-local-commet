@@ -27,6 +27,7 @@ import { WorkspaceJsonStorageBase } from './workspaceJsonStorageBase';
 export class CommentStorage extends WorkspaceJsonStorageBase {
   private _comments: FileComments = {};
   private _shareComments: FileComments = {};
+  private _hasPersistedStorage = false;
   private _saveTimer: NodeJS.Timeout | null = null;
   private _timerManager: TimerManager = new TimerManager();
 
@@ -103,6 +104,14 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
   }
 
   /**
+   * 检查是否已有持久化注释存储。
+   * 共享注释清理不能首次创建工作区存储文件。
+   */
+  hasPersistedStorage(): boolean {
+    return this._hasPersistedStorage;
+  }
+
+  /**
    * 替换整个注释数据对象（用于迁移场景）
    */
   replaceComments(newComments: FileComments): void {
@@ -147,6 +156,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
   // ============== 数据加载 ==============
 
   async loadComments(): Promise<void> {
+    this._hasPersistedStorage = false;
     try {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -213,6 +223,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
           this._comments = remapFileCommentsToWorkspace(this._comments, workspacePath);
           this._shareComments = remapFileCommentsToWorkspace(this._shareComments, workspacePath);
         }
+        this._hasPersistedStorage = true;
       } catch (parseError) {
         logger.error('配置文件格式错误:', parseError);
         const errorMessage = `配置文件格式错误: ${filePath}\n请检查文件是否为有效的 JSON 格式。`;
@@ -325,6 +336,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
       }
 
       this._updateStorageFile(this._resolveInitialStorageFile(this._context));
+      this._hasPersistedStorage = true;
     } catch (error) {
       logger.error('保存注释失败:', error);
     }

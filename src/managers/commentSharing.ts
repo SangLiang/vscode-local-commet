@@ -65,10 +65,11 @@ export class CommentSharing {
    * 当用户未登录时，清除所有共享注释
    * @param isLoggedIn 用户是否已登录
    */
-  async handleSharedCommentsByAuthStatus(isLoggedIn: boolean): Promise<void> {
+  async handleSharedCommentsByAuthStatus(isLoggedIn: boolean): Promise<number> {
     if (!isLoggedIn) {
-      await this.clearAllSharedComments();
+      return this.clearAllSharedComments();
     }
+    return 0;
   }
 
   /**
