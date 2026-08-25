@@ -46,6 +46,7 @@ vi.mock('../utils/storagePathUtils', () => ({
     getCurrentCommentsFile: vi.fn(() => '/workspace/project/.vscode/local-comment/comments/comments.json'),
     fileExists: vi.fn(() => true),
     ensureNewPathExists: vi.fn(),
+    ensureNewStorageInitialized: vi.fn(),
     ensureDirectoryExists: vi.fn(),
     listConfigFiles: vi.fn(() => ['comments.json', 'test.json']),
     loadConfig: vi.fn(() => ({ comments: 'comments.json' })),
@@ -339,6 +340,16 @@ describe('CommentStorage', () => {
 
       const comments = storage.getCommentsRef();
       expect(comments).toEqual({});
+    });
+
+    it('空工作区加载时不应创建项目存储', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      storage = new CommentStorage(mockContext);
+      await storage.loadComments();
+
+      expect(fs.mkdirSync).not.toHaveBeenCalled();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
   });
 

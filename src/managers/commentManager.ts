@@ -358,22 +358,22 @@ export class CommentManager implements vscode.Disposable {
 
     public async clearAllSharedComments(): Promise<number> {
         const count = await this.sharing.clearAllSharedComments();
-        if (count > 0) {
+        if (count > 0 && this.storage.hasPersistedStorage()) {
             await this._saveAndFireShared();
         }
         return count;
     }
 
     public async handleSharedCommentsByAuthStatus(isLoggedIn: boolean): Promise<void> {
-        await this.sharing.handleSharedCommentsByAuthStatus(isLoggedIn);
-        if (!isLoggedIn) {
+        const count = await this.sharing.handleSharedCommentsByAuthStatus(isLoggedIn);
+        if (!isLoggedIn && count > 0 && this.storage.hasPersistedStorage()) {
             await this._saveAndFireShared();
         }
     }
 
     public async clearFileSharedComments(uri: vscode.Uri): Promise<number> {
         const count = await this.sharing.clearFileSharedComments(uri.fsPath);
-        if (count > 0) {
+        if (count > 0 && this.storage.hasPersistedStorage()) {
             await this._saveAndFireShared();
         }
         return count;

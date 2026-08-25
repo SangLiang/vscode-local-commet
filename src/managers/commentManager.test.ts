@@ -157,6 +157,7 @@ vi.mock('../utils/storagePathUtils', () => ({
     getCurrentCommentsFile: vi.fn(() => '/workspace/.vscode/local-comment/comments/comments.json'),
     fileExists: vi.fn(() => false),
     ensureNewPathExists: vi.fn(),
+    ensureNewStorageInitialized: vi.fn(),
     ensureDirectoryExists: vi.fn(),
     listConfigFiles: vi.fn(() => ['comments.json']),
     loadConfig: vi.fn(() => ({ comments: 'comments.json', bookmarks: 'bookmarks.json' })),
@@ -566,6 +567,18 @@ describe('CommentManager 注释管理器测试', () => {
   });
 
   describe('handleSharedCommentsByAuthStatus - 处理共享注释认证状态', () => {
+    it('未登录且没有持久化存储时不应保存清理结果', async () => {
+      const storage = (commentManager as any).storage;
+      const { StoragePathUtils } = await import('../utils/storagePathUtils');
+      storage.getShareCommentsRef()[TEST_FILE] = [makeSharedComment()];
+
+      await commentManager.handleSharedCommentsByAuthStatus(false);
+
+      expect(Object.keys(commentManager.getAllSharedComments())).toHaveLength(0);
+      expect(mockPromisesWriteFile).not.toHaveBeenCalled();
+      expect(vi.mocked(StoragePathUtils.ensureNewStorageInitialized)).not.toHaveBeenCalled();
+    });
+
     it('当未登录时应该清除所有共享注释', async () => {
       const manager = createManagerFromStorage({
         shareComments: { [TEST_FILE]: [makeSharedComment()] },
@@ -574,6 +587,7 @@ describe('CommentManager 注释管理器测试', () => {
       await manager.handleSharedCommentsByAuthStatus(false);
 
       expect(Object.keys(manager.getAllSharedComments())).toHaveLength(0);
+      expect(mockPromisesWriteFile).toHaveBeenCalled();
       manager.dispose();
     });
 
@@ -1208,7 +1222,7 @@ describe('CommentManager 注释管理器测试', () => {
       const { StoragePathUtils } = await import('../utils/storagePathUtils');
 
       // 模拟权限错误但旧路径存在
-      vi.mocked(StoragePathUtils.ensureNewPathExists).mockImplementation(() => {
+      vi.mocked(StoragePathUtils.ensureNewStorageInitialized).mockImplementation(async () => {
         throw new Error('EACCES: permission denied');
       });
       vi.mocked(StoragePathUtils.isWritePermissionError).mockReturnValue(true);
@@ -1218,7 +1232,7 @@ describe('CommentManager 注释管理器测试', () => {
       await commentManager.addComment(uri, 10, 'test comment');
 
       // 重置 mock
-      vi.mocked(StoragePathUtils.ensureNewPathExists).mockImplementation(() => {});
+      vi.mocked(StoragePathUtils.ensureNewStorageInitialized).mockImplementation(async () => {});
       vi.mocked(StoragePathUtils.isWritePermissionError).mockReturnValue(false);
       vi.mocked(StoragePathUtils.fileExists).mockReturnValue(false);
 
@@ -1234,7 +1248,7 @@ describe('CommentManager 注释管理器测试', () => {
       const { StoragePathUtils } = await import('../utils/storagePathUtils');
 
       // 模拟权限错误且旧路径不存在
-      vi.mocked(StoragePathUtils.ensureNewPathExists).mockImplementation(() => {
+      vi.mocked(StoragePathUtils.ensureNewStorageInitialized).mockImplementation(async () => {
         throw new Error('EACCES: permission denied');
       });
       vi.mocked(StoragePathUtils.isWritePermissionError).mockReturnValue(true);
@@ -1246,7 +1260,7 @@ describe('CommentManager 注释管理器测试', () => {
       expect(mockShowError).toHaveBeenCalledWith('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
 
       // 重置 mock
-      vi.mocked(StoragePathUtils.ensureNewPathExists).mockImplementation(() => {});
+      vi.mocked(StoragePathUtils.ensureNewStorageInitialized).mockImplementation(async () => {});
       vi.mocked(StoragePathUtils.isWritePermissionError).mockReturnValue(false);
       vi.mocked(StoragePathUtils.fileExists).mockReturnValue(false);
     });

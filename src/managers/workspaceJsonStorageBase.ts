@@ -84,7 +84,6 @@ export abstract class WorkspaceJsonStorageBase {
     const workspacePath = folder.uri.fsPath;
     const paths = StoragePathUtils.getStoragePaths(this._context, workspacePath);
     const dir = this.getConfigDir(paths);
-    StoragePathUtils.ensureDirectoryExists(dir);
     return StoragePathUtils.listConfigFiles(dir);
   }
 
