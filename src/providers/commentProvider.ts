@@ -25,16 +25,8 @@ export class CommentProvider implements vscode.Disposable {
     constructor(commentManager: CommentManager) {
         this.commentManager = commentManager;
 
-        // 初始创建装饰类型（先不设置图标，这里的图标指行号旁边的小图标，可以用svg）
-        // 行尾用 before：与 GitLens 等扩展的 after 并存时，注释会出现在更靠近代码的一侧
-        this.decorationType = vscode.window.createTextEditorDecorationType({
-            before: {
-                color: '#888888',
-                fontStyle: 'italic',
-                margin: '0 0 0 2em'
-            },
-            rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
-        });
+        // 行内注释装饰类型（位置/样式集中在 buildDecorationRenderOptions，改 before↔after 只需改那一处）
+        this.decorationType = vscode.window.createTextEditorDecorationType(this.buildDecorationRenderOptions(false));
 
         // 标签装饰器（当前未使用，但保留以避免错误）
         this.tagDecorationType = vscode.window.createTextEditorDecorationType({});
@@ -86,29 +78,27 @@ export class CommentProvider implements vscode.Disposable {
     // 重新创建装饰类型（加载图标后）
     // 行内文字始终显示；gutter 图标根据配置决定是否显示
     private recreateDecorationType(): void {
-        // 先释放旧的装饰类型
         this.decorationType.dispose();
+        const enableGutter = vscode.workspace.getConfiguration('local-comment').get<boolean>('enableGutterProvider', true);
+        this.decorationType = vscode.window.createTextEditorDecorationType(this.buildDecorationRenderOptions(enableGutter));
+    }
 
-        const config = vscode.workspace.getConfiguration('local-comment');
-        const enableGutter = config.get<boolean>('enableGutterProvider', true);
-
+    // 构建行内注释装饰类型的渲染选项（位置/样式集中在此，改 before↔after 只需改这一处）
+    private buildDecorationRenderOptions(enableGutter: boolean): vscode.DecorationRenderOptions {
         const options: vscode.DecorationRenderOptions = {
-            // 行尾用 before，尽量排在 GitLens Current Line Blame（after）左侧
-            before: {
+            // 行尾用 after：光标可正常到达行末（before 会在行尾占据虚拟位置，导致光标无法越过最后一个字符）
+            after: {
                 color: '#888888',
                 fontStyle: 'italic',
                 margin: '0 0 0 2em'
             },
             rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
         };
-
-        // 仅在启用时添加行号旁的 gutter 图标
         if (enableGutter && this.commentIconUri) {
             options.gutterIconPath = vscode.Uri.parse(this.commentIconUri);
             options.gutterIconSize = 'contain';
         }
-
-        this.decorationType = vscode.window.createTextEditorDecorationType(options);
+        return options;
     }
 
     public refresh(): void {
@@ -171,7 +161,7 @@ export class CommentProvider implements vscode.Disposable {
             // 优先显示本地注释的内容和行号标识
             if (localComments.length > 0) {
                 const normalDecoration = this.createSingleDecoration(lineComments, line, editor);
-                if (normalDecoration.renderOptions?.before?.contentText) {
+                if (this.hasInlineContent(normalDecoration)) {
                     normalDecorations.push(normalDecoration);
                 }
             }
@@ -189,33 +179,30 @@ export class CommentProvider implements vscode.Disposable {
         // 只显示本地注释，过滤掉共享注释
         const localComments = comments.filter(comment => !('userId' in comment));
 
-        // 构建显示文本
         let contentText = '';
-        let color = '#6B7283'; // 默认灰蓝色
-        let fontStyle = 'italic';
-        let margin = '0 0 0 2em';
-
-        // 只显示本地注释
         if (localComments.length > 0) {
-            const localComment = localComments[0]; // 只显示第一条本地注释
-            contentText = ` ${localComment.content}`;
-            color = '#6B7283'; // 灰蓝色
+            contentText = ` ${localComments[0].content}`;
         }
 
-        // 创建装饰选项（行尾 before，见 decorationType 说明）
-        const decoration: vscode.DecorationOptions = {
+        return {
             range: new vscode.Range(line.lineNumber, lineLength, line.lineNumber, lineLength),
-            renderOptions: {
-                before: {
-                    contentText: contentText,
-                    color: color,
-                    fontStyle: fontStyle,
-                    margin: margin
-                }
-            }
+            renderOptions: { after: this.buildInlineAttachment(contentText) }
         };
+    }
 
-        return decoration;
+    // 构建单个注释的行内附件渲染选项（实例级，覆盖类型级默认色）
+    private buildInlineAttachment(contentText: string): vscode.ThemableDecorationAttachmentRenderOptions {
+        return {
+            contentText,
+            color: '#6B7283',
+            fontStyle: 'italic',
+            margin: '0 0 0 2em'
+        };
+    }
+
+    // 判断装饰是否带有行内注释内容
+    private hasInlineContent(decoration: vscode.DecorationOptions): boolean {
+        return !!decoration.renderOptions?.after?.contentText;
     }
 
     // 移除共享注释装饰器方法 - 不再需要
