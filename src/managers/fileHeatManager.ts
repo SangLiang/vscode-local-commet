@@ -30,6 +30,7 @@ export class FileHeatManager implements vscode.Disposable {
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
         this.loadHeatData();
+        this.cleanupOldData();
         this.setupEventListeners();
     }
 
@@ -253,14 +254,18 @@ export class FileHeatManager implements vscode.Disposable {
      */
     public cleanupOldData(daysBefore: number = 30): void {
         const cutoffTime = Date.now() - (daysBefore * 24 * 60 * 60 * 1000);
-        
+        let removed = false;
+
         for (const [filePath, heatInfo] of Object.entries(this.heatData)) {
             if (heatInfo.lastAccessTime < cutoffTime) {
                 delete this.heatData[filePath];
+                removed = true;
             }
         }
-        
-        this.saveHeatData();
+
+        if (removed) {
+            this.saveHeatData();
+        }
     }
 
     /**
