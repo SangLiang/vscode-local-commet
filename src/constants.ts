@@ -161,6 +161,10 @@ export const IPC_MESSAGES = {
     UPDATE_CURRENT_LINE_CONTENT: 'updateCurrentLineContent',
     SET_MERMAID_THEME: 'setMermaidTheme',
     SET_PREVIEW_FONT_SIZE: 'setPreviewFontSize',
+    /** Webview → 扩展：请求推送预览配置（字号/mermaid 主题/标签），兜底初次 setTimeout 推送时序问题 */
+    REQUEST_PREVIEW_CONFIG: 'requestPreviewConfig',
+    /** Webview → 扩展：请求调整 Markdown 预览字体大小（delta 或 reset） */
+    CHANGE_PREVIEW_FONT_SIZE: 'changePreviewFontSize',
     /** 保存成功后通知 Webview 更新「已提交基线」正文 */
     EDITOR_BASELINE_COMMITTED: 'editorBaselineCommitted',
     /** 保存被跳过（空内容 / 无变更）时通知 Webview，避免误将基线标为已提交 */

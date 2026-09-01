@@ -346,6 +346,23 @@ export class MarkdownPreviewWebview {
                 return;
             }
 
+            if (message.command === IPC_MESSAGES.CHANGE_PREVIEW_FONT_SIZE) {
+                await this.handleChangePreviewFontSize(message);
+                return;
+            }
+
+            if (message.command === IPC_MESSAGES.REQUEST_PREVIEW_CONFIG) {
+                try {
+                    postMarkdownPreviewConfig(this.panel.webview, {
+                        sendAvailableTags: true,
+                        availableTagNames: this.availableTagNames
+                    });
+                } catch (error) {
+                    logger.error('响应预览配置请求失败:', error);
+                }
+                return;
+            }
+
             if (message.command === IPC_MESSAGES.GO_TO_TAG_DECLARATION && message.tagName) {
                 try {
                     await vscode.commands.executeCommand(
@@ -399,6 +416,39 @@ export class MarkdownPreviewWebview {
                     error: exportError
                 });
             }
+        });
+    }
+
+    /** 处理 Webview 的字号调节请求：计算新值、写配置、回推实际字号给当前面板 */
+    private async handleChangePreviewFontSize(message: { delta?: number; reset?: boolean }): Promise<void> {
+        const config = vscode.workspace.getConfiguration('local-comment');
+        const currentConfigValue = config.get<number>('markdownPreview.fontSize', 0);
+        const editorFontSize = vscode.workspace.getConfiguration('editor').get<number>('fontSize', 14);
+
+        let newConfigValue: number;
+        if (message.reset) {
+            newConfigValue = 0;
+        } else {
+            const baseSize = currentConfigValue === 0 ? editorFontSize : currentConfigValue;
+            const delta = typeof message.delta === 'number' ? message.delta : 0;
+            newConfigValue = Math.min(100, Math.max(1, baseSize + delta));
+            // 跟随编辑器时，若加减后仍等于编辑器字号，则保持 0（跟随编辑器）语义
+            if (currentConfigValue === 0 && newConfigValue === editorFontSize) {
+                newConfigValue = 0;
+            }
+        }
+
+        const actualFontSize = newConfigValue === 0 ? editorFontSize : newConfigValue;
+
+        try {
+            await config.update('markdownPreview.fontSize', newConfigValue, vscode.ConfigurationTarget.Workspace);
+        } catch (error) {
+            logger.error('更新预览字体大小配置失败:', error);
+        }
+
+        this.panel.webview.postMessage({
+            command: IPC_MESSAGES.SET_PREVIEW_FONT_SIZE,
+            fontSize: actualFontSize
         });
     }
 

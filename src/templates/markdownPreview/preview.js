@@ -763,6 +763,33 @@
         }
     }
 
+    /** 更新操作菜单中的字号数值显示 */
+    function updateFontSizeValueDisplay(fontSize) {
+        const valueEl = document.getElementById('fontSizeValue');
+        if (valueEl && fontSize && fontSize > 0) {
+            valueEl.textContent = fontSize + 'px';
+        }
+    }
+
+    /** 绑定字号调节按钮：A−/A+/重置，请求扩展更新配置并回推实际字号 */
+    function initFontSizeControls() {
+        const decBtn = document.getElementById('fontSizeDec');
+        const incBtn = document.getElementById('fontSizeInc');
+        const resetBtn = document.getElementById('fontSizeReset');
+        if (!decBtn || !incBtn || !resetBtn) {
+            return;
+        }
+        decBtn.addEventListener('click', function() {
+            vscode.postMessage({ command: 'changePreviewFontSize', delta: -1 });
+        });
+        incBtn.addEventListener('click', function() {
+            vscode.postMessage({ command: 'changePreviewFontSize', delta: 1 });
+        });
+        resetBtn.addEventListener('click', function() {
+            vscode.postMessage({ command: 'changePreviewFontSize', reset: true });
+        });
+    }
+
     /**
      * 核心预览管线：
      * 1) 占位保护 ${标签} → 2) marked 注入 data-source-line → 3) @tag / KaTeX
@@ -954,6 +981,7 @@
                     if (typeof window.applyPreviewFontSize === 'function') {
                         window.applyPreviewFontSize(previewArea, message.fontSize);
                     }
+                    updateFontSizeValueDisplay(message.fontSize);
                 }
                 break;
             case 'setMermaidTheme':
@@ -1584,6 +1612,12 @@ body {
     }
 
     initActionMenuControls();
+    initFontSizeControls();
+    // 主动请求配置推送，兜底扩展侧 setTimeout(0) 推送时 webview 尚未就绪导致字号等丢失
+    vscode.postMessage({ command: 'requestPreviewConfig' });
+    if (currentPreviewFontSize) {
+        updateFontSizeValueDisplay(currentPreviewFontSize);
+    }
     if (window.PreviewToc) {
         window.PreviewToc.init({ previewArea: previewArea, vscode: vscode });
     }

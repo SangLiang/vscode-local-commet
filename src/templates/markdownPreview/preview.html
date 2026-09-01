@@ -48,6 +48,13 @@
                         <input type="checkbox" id="showTocToggle">
                         <span>显示目录</span>
                     </label>
+                    <div class="export-option font-size-row" title="调节预览字体大小（持久化到 local-comment.markdownPreview.fontSize）">
+                        <span class="font-size-label">字号</span>
+                        <button type="button" id="fontSizeDec" class="font-size-btn" title="缩小 (-1px)">A−</button>
+                        <span id="fontSizeValue" class="font-size-value">14px</span>
+                        <button type="button" id="fontSizeInc" class="font-size-btn" title="放大 (+1px)">A+</button>
+                        <button type="button" id="fontSizeReset" class="font-size-btn font-size-reset" title="跟随编辑器字体大小">重置</button>
+                    </div>
                     <button class="export-btn" id="exportHtmlBtn" title="导出为 HTML">
                         导出 HTML
                     </button>
