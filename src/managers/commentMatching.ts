@@ -58,7 +58,6 @@ export class CommentMatching {
     const matchResults = this.commentMatcher.batchMatchCommentsWithFullSearch(document, allComments);
 
     const matchedComments: (LocalComment | SharedComment)[] = [];
-    let needsSave = false;
 
     for (const comment of allComments) {
       // 对于默认文件注释（第一行），直接添加到匹配结果中
@@ -92,21 +91,10 @@ export class CommentMatching {
           };
         }
         matchedComments.push(matchedComment);
-
-        // 如果位置发生了变化，更新存储的注释
-        if (comment.line !== matchedLine) {
-          comment.line = matchedLine;
-          needsSave = true;
-        }
       } else {
         // 标记为未匹配
         comment.isMatched = false;
       }
-    }
-
-    // 如果有位置更新，触发异步保存
-    if (needsSave && this.onAsyncSave) {
-      this.onAsyncSave();
     }
 
     return matchedComments;
