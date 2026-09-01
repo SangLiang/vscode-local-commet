@@ -8,7 +8,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fixed an issue where `@...` inside inline code and fenced code blocks was rendered and indexed as a tag reference
+- Fixed an issue where `@...` inside inline code and fenced code blocks was rendered and indexed as a tag reference (thanks to [@abcdvvvv](https://github.com/abcdvvvv) for the fix in [#7](https://github.com/SangLiang/vscode-local-comment/pull/7))
+- Fixed external document changes, including Git branch switches, not triggering immediate full-file comment matching (based on [#8](https://github.com/SangLiang/vscode-local-comment/pull/8) from [@abcdvvvv](https://github.com/abcdvvvv))
 
 ## [2.1.3] - 2026-08-17
 

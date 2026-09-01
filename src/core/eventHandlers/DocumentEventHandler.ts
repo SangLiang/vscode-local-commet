@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { ExtensionContainer } from '../ExtensionContainer';
-import { EditorEventHandler } from './EditorEventHandler';
 import { logger } from '../../utils/logger';
 import { TimerManager } from '../../utils/timerUtils';
 
@@ -16,8 +15,7 @@ export class DocumentEventHandler {
 
     constructor(
         private container: ExtensionContainer,
-        private context: vscode.ExtensionContext,
-        private editorEventHandler: EditorEventHandler
+        private context: vscode.ExtensionContext
     ) {}
 
     /**
@@ -69,16 +67,12 @@ export class DocumentEventHandler {
     }
 
     private handleDocumentChange(event: vscode.TextDocumentChangeEvent): void {
-        // 文档变化时更新键盘活动时间（确保复制粘贴等操作被识别为用户活动）
-        this.editorEventHandler.updateKeyboardActivity();
-        
-        // 只有在最近有键盘活动的情况下才更新代码快照
-        // 这样可以区分用户输入和程序修改（程序修改通常不会有键盘活动）
-        const hasRecentKeyboardActivity = this.editorEventHandler.hasRecentKeyboardActivity();
-        
-        // 传递键盘活动信息给commentManager
-        // commentManager 会根据 hasRecentKeyboardActivity 决定是否执行智能匹配
-        this.container.commentManager.handleDocumentChange(event, hasRecentKeyboardActivity);
+        // 用户编辑和编辑器命令会使文档进入 dirty 状态；外部文件更新通常保持 clean。
+        // Undo/Redo 可能使文档重新变为 clean，因此需要通过 reason 排除。
+        const isExternalChange = !event.document.isDirty && event.reason === undefined;
+
+        // 外部文件更新（包括Git分支切换）需要立即执行全文智能匹配
+        this.container.commentManager.handleDocumentChange(event, isExternalChange);
         
         // 处理书签的文档变化
         this.container.bookmarkManager.handleDocumentChange(event);

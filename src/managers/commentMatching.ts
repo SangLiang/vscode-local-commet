@@ -17,13 +17,11 @@ import { DELAY_TIMES, COMMANDS } from '../constants';
  * 注意：本类不直接触发事件，事件由 CommentManager 协调器统一处理
  */
 export class CommentMatching {
-  private _hasKeyboardActivity = false;
-
   constructor(
     private storage: CommentStorage,
     private commentMatcher: CommentMatcher,
     private timerManager: TimerManager,
-    private onAsyncSave?: () => void
+    private onAsyncSave?: () => Promise<void>
   ) {}
 
   /**
@@ -117,11 +115,11 @@ export class CommentMatching {
   /**
    * 处理文档变更事件
    * @param event 文档变更事件
-   * @param hasRecentKeyboardActivity 是否有最近的键盘活动（用于区分 Git 分支切换）
+   * @param isExternalChange 是否为外部文件更新（包括 Git 分支切换）
    */
   async handleDocumentChange(
     event: vscode.TextDocumentChangeEvent,
-    hasRecentKeyboardActivity: boolean = true
+    isExternalChange: boolean = false
   ): Promise<void> {
     const filePath = event.document.uri.fsPath;
     const fileComments = this.storage.getCommentsRef()[filePath];
@@ -130,13 +128,10 @@ export class CommentMatching {
       return;
     }
 
-    // 记录键盘活动状态
-    this._hasKeyboardActivity = hasRecentKeyboardActivity;
-
-    // 如果没有键盘活动，可能是Git分支切换，需要立即执行智能匹配
-    if (!hasRecentKeyboardActivity) {
-      logger.debug('检测到Git分支切换，立即执行智能匹配');
-      await this.performSmartMatchingForFile(event.document);
+    // 外部文件更新可能来自Git分支切换，需要立即执行全文智能匹配
+    if (isExternalChange) {
+      logger.debug('检测到外部文件更新，立即执行全文智能匹配');
+      await this.performSmartMatchingForFile(event.document, this.onAsyncSave);
 
       // 刷新注释显示
       this.timerManager.setTimeout(() => {
@@ -265,7 +260,7 @@ export class CommentMatching {
   }
 
   /**
-   * 为单个文件执行智能匹配（用于Git分支切换等场景）
+   * 为单个文件执行智能匹配（用于外部文件更新，包括Git分支切换）
    * @returns 更新的注释数量
    */
   async performSmartMatchingForFile(document: vscode.TextDocument, onUpdate?: () => Promise<void>): Promise<number> {
@@ -278,8 +273,8 @@ export class CommentMatching {
 
     let fileUpdates = 0;
 
-    // Git分支切换场景：使用支持全文搜索的批量匹配功能
-    logger.debug(`Git分支切换场景，使用全文搜索进行智能匹配`);
+    // 外部文件更新场景：使用支持全文搜索的批量匹配功能
+    logger.debug(`外部文件更新场景，使用全文搜索进行智能匹配`);
     const matchResults = this.commentMatcher.batchMatchCommentsWithFullSearch(document, fileComments);
 
     for (const comment of fileComments) {
@@ -302,16 +297,16 @@ export class CommentMatching {
             fileUpdates++;
           }
         } catch (error) {
-          logger.warn(`Git分支切换时无法更新注释 ${comment.id}:`, error);
+          logger.warn(`外部文件更新时无法更新注释 ${comment.id}:`, error);
         }
       }
     }
 
     if (fileUpdates > 0 && onUpdate) {
       await onUpdate();
-      logger.debug(`Git分支切换智能匹配完成，更新了 ${fileUpdates} 个注释`);
+      logger.debug(`外部文件更新智能匹配完成，更新了 ${fileUpdates} 个注释`);
     } else {
-      logger.debug(`Git分支切换智能匹配完成，注释位置无需更新`);
+      logger.debug(`外部文件更新智能匹配完成，注释位置无需更新`);
     }
 
     return fileUpdates;

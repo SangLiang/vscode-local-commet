@@ -295,9 +295,9 @@ export class CommentManager implements vscode.Disposable {
 
     public async handleDocumentChange(
         event: vscode.TextDocumentChangeEvent,
-        hasRecentKeyboardActivity: boolean = true
+        isExternalChange: boolean = false
     ): Promise<void> {
-        await this.matching.handleDocumentChange(event, hasRecentKeyboardActivity);
+        await this.matching.handleDocumentChange(event, isExternalChange);
     }
 
     public async handleDocumentSave(document: vscode.TextDocument): Promise<void> {

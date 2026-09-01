@@ -6,7 +6,8 @@
 
 ### 修复
 
-- 修复行内代码和 fenced code block 中的 `@...` 被渲染和索引为标签引用的问题
+- 修复行内代码和 fenced code block 中的 `@...` 被渲染和索引为标签引用的问题(感谢来自[@abcdvvvv](https://github.com/abcdvvvv)的修复 [#7](https://github.com/SangLiang/vscode-local-comment/pull/7))
+- 修复包括 Git 分支切换在内的外部文件更新无法立即触发注释全文匹配的问题 (根据[@abcdvvvv](https://github.com/abcdvvvv)提出的[#8](https://github.com/SangLiang/vscode-local-comment/pull/8)修改)
 
 ## [2.1.3] - 2026-08-17
 
