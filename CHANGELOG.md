@@ -4,12 +4,25 @@ All notable changes to this project will be documented in this file.
 
 [中文版](./CHANGELOG.zh-CN.md)
 
-## [Unreleased]
+## [2.2.0] - 2026-09-02
+
+### Added
+
+- Added a color picker for the local comment content displayed in the editor, allowing users to choose a comment color based on the importance level of the comment
+
+![image](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/local_comment_color.png)
+
+- The Markdown file preview font size is now adjustable.
 
 ### Fixed
 
 - Fixed an issue where `@...` inside inline code and fenced code blocks was rendered and indexed as a tag reference (thanks to [@abcdvvvv](https://github.com/abcdvvvv) for the fix in [#7](https://github.com/SangLiang/vscode-local-comment/pull/7))
+
 - Fixed external document changes, including Git branch switches, not triggering immediate full-file comment matching (based on [#8](https://github.com/SangLiang/vscode-local-comment/pull/8) from [@abcdvvvv](https://github.com/abcdvvvv))
+
+- The previous version fixed an issue where local comment content appeared too far down the line when other lens providers (e.g., GitLens) were present, but this introduced a new problem where users could not select after the last character of source code with local comments — the cursor would always land before the last character. This is an upstream VS Code issue, so we have reverted to the previous design. To prioritize user experience, local comment content may now again appear after other content such as GitLens.
+
+- Fixed some other known bugs.
 
 ## [2.1.3] - 2026-08-17
 

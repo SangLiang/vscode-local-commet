@@ -2,12 +2,24 @@
 
 本文件记录本项目所有重要变更。
 
-## [未发布]
+## [2.2.0] - 2026-09-02
+
+### 新增
+- 为 local comment 注释内容在编辑的显示里添加颜色选择,用户可以根据注释的重要级别选择合适的注释颜色
+
+![image](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/local_comment_color.png)
+
+- Markdown文件预览可以调整字体大小了。
 
 ### 修复
 
 - 修复行内代码和 fenced code block 中的 `@...` 被渲染和索引为标签引用的问题(感谢来自[@abcdvvvv](https://github.com/abcdvvvv)的修复 [#7](https://github.com/SangLiang/vscode-local-comment/pull/7))
+
 - 修复包括 Git 分支切换在内的外部文件更新无法立即触发注释全文匹配的问题 (根据[@abcdvvvv](https://github.com/abcdvvvv)提出的[#8](https://github.com/SangLiang/vscode-local-comment/pull/8)修改)
+
+- 上一个版本修复[在有git lens等其他lens的情况下，local comment内容显示过于置后的问题]，会引发新的问题，导致用户选择带有本地注释的源码时无法选中最后一个字符后面，光标总是会落在最后一个字符的前面。这是vscode 自有的问题，这里回退到之前的设计。为了优先保证用户体验，用户的local comment注释内容可能会在git lens等其他的内容之后。
+
+- 修复一些其他的已知bug。
 
 ## [2.1.3] - 2026-08-17
 
