@@ -61,3 +61,11 @@ planning/**
 
 # 排除 GIF 文件
 **/*.gif 
+
+# 功能截图（仅保留扩展图标）
+# README / CHANGELOG 中的截图均使用 GitHub 绝对 URL，
+# 无需将本地图片打进 vsix；仅需保留 icon.png 与 activity-bar.svg
+!images/icon.png
+!images/activity-bar.svg
+images/*.png
+images/*.jpg

@@ -26,6 +26,7 @@
 | **Sidebar tree** | Browse comments and bookmarks for the project and jump back to code. |
 | **Projects / groups** | Multiple independent comment groups per project: switch between several configs under `.vscode/local-comment/` (e.g. notes for one branch vs another). |
 | **Markdown preview & export** | Preview `.md` files (diagrams, formulas, **Ctrl+F search**); **Alt+click** to jump back to the matching source line; one-click export to self-contained HTML for sharing and offline viewing. |
+| **Custom comment colors** | **New in v2.2**: Assign a color to a comment based on its importance, making notable comments stand out in the editor. |
 
 **In short:** keep “how you read the code” in VS Code, **local and private by default**.
 
@@ -69,6 +70,12 @@ Full shortcut tables are at the end of this file.
 You can embed LaTeX in local comments and render it in preview.
 
 ![LaTeX support](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/latex_support.png)
+
+### Comment colors (New in v2.2)
+
+Color-code your comments by importance level so the notable ones stand out at a glance in the editor.
+
+![Comment colors](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/local_comment_color.png)
 
 ### Multi-user collaboration (optional)
 
@@ -134,6 +141,7 @@ Typical cases: **researching a codebase**, **design notes that should not land i
 - **Edit**: `Ctrl+Shift+E` edits the comment bound to the current line.
 - **Delete**: `Ctrl+Shift+D` removes the comment on the current line.
 - **Selection to comment**: `Ctrl+Shift+T` turns the selection into a comment.
+- **Colors** (**New in v2.2**): Choose a color for a comment to reflect its importance—for example mark **critical** notes in red so they stand out from routine ones.
 
 ### 4. Activity Bar and comment groups
 

@@ -26,6 +26,7 @@
 | **侧栏列表** | 统一浏览当前项目的注释与书签，从树里点回代码。 |
 | **项目 / 分组** | 支持多项目内多分组注释，可以 `.vscode/local-comment/` 下多份配置切换（分支1的注释 / 分支2的注释）。 |
 | **Markdown 预览与导出** | 直接预览 `.md` 文件（支持图表、公式、**Ctrl+F 搜索**）；**Alt+单击**跳回源码对应行；一键导出为自包含 HTML，便于分享和离线查看。 |
+| **自定义注释颜色** | **2.2 新增**：根据重要级别为注释指定颜色，让重点注释在编辑器中一眼可见。 |
 
 简单来说就是把「读代码时的脑子」留在 VS Code 里，且**默认完全本地、私有**。
 
@@ -69,6 +70,12 @@
 在本地注释中可插入 LaTeX 公式并在预览中渲染。
 
 ![LaTeX 支持](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/latex_support.png)
+
+### 注释颜色（2.2 新增）
+
+按重要级别为注释着色，让重点注释在编辑器中一眼可见。
+
+![注释颜色](https://raw.githubusercontent.com/SangLiang/vscode-local-comment/refs/heads/master/images/local_comment_color.png)
 
 ### 多人协作（可选）
 
@@ -134,6 +141,7 @@
 - **编辑**：`Ctrl+Shift+E` 编辑当前行关联的注释。
 - **删除**：`Ctrl+Shift+D` 删除当前行注释。
 - **选区转注释**：`Ctrl+Shift+T` 将选中内容转为注释。
+- **注释颜色**（**2.2 新增**）：可为注释选择一种颜色以体现其重要级别——例如把**关键**备注标成红色，从普通备注中突出显示。
 
 ### 4. Activity Bar 与注释分组
 
