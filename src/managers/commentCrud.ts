@@ -3,6 +3,7 @@ import { LocalComment } from './commentTypes';
 import { CommentStorage } from './commentStorage';
 import { generateId, findCommentIndex } from '../utils/idUtils';
 import { logger } from '../utils/logger';
+import { colorKeyForStorage } from '../utils/commentDecorationColor';
 
 /**
  * 注释 CRUD 操作类
@@ -60,7 +61,8 @@ export class CommentCRUD {
     uri: vscode.Uri,
     line: number,
     content: string,
-    lineContent: string
+    lineContent: string,
+    color?: string
   ): Promise<LocalComment> {
     const comments = this.storage.getCommentsRef();
     const filePath = uri.fsPath;
@@ -78,6 +80,10 @@ export class CommentCRUD {
       lineContent: lineContent.trim(),
       isShared: false
     };
+    const storedColor = colorKeyForStorage(color);
+    if (storedColor) {
+      comment.color = storedColor;
+    }
 
     // 检查是否已存在该行的本地注释，如果存在则替换
     const existingLocalIndex = comments[filePath].findIndex(c =>
@@ -102,7 +108,7 @@ export class CommentCRUD {
    * @param newContent 新内容
    * @returns 是否成功编辑
    */
-  editComment(filePath: string, commentId: string, newContent: string): boolean {
+  editComment(filePath: string, commentId: string, newContent: string, color?: string): boolean {
     const comments = this.storage.getCommentsRef();
 
     if (!comments[filePath]) {
@@ -118,6 +124,14 @@ export class CommentCRUD {
 
     comments[filePath][commentIndex].content = newContent;
     comments[filePath][commentIndex].timestamp = Date.now(); // 更新时间戳
+    if (color !== undefined) {
+      const storedColor = colorKeyForStorage(color);
+      if (storedColor) {
+        comments[filePath][commentIndex].color = storedColor;
+      } else {
+        delete comments[filePath][commentIndex].color;
+      }
+    }
 
     return true;
   }

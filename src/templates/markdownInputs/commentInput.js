@@ -2,8 +2,28 @@
     const vscode = acquireVsCodeApi();
     const textarea = document.getElementById('contentInput');
     const previewArea = document.getElementById('previewArea');
+    const decorationColorSelect = document.getElementById('decorationColorSelect');
+
+    function getSelectedDecorationColor() {
+        return decorationColorSelect ? (decorationColorSelect.getAttribute('data-value') || 'default') : 'default';
+    }
+
+    function setSelectedDecorationColor(key) {
+        if (!decorationColorSelect || !key) {
+            return;
+        }
+        decorationColorSelect.setAttribute('data-value', key);
+        const swatches = decorationColorSelect.querySelectorAll('.decoration-color-swatch');
+        swatches.forEach(function(btn) {
+            const selected = btn.getAttribute('data-key') === key;
+            btn.classList.toggle('is-selected', selected);
+            btn.setAttribute('aria-checked', selected ? 'true' : 'false');
+        });
+    }
+
     /** 打开面板时磁盘/模板上的正文，用于 dirty 判断（早于 getState 恢复） */
     const diskCommittedBaseline = textarea.value;
+    const diskCommittedColor = getSelectedDecorationColor();
     let previewVisible = false;
     let currentPreviewFontSize = null; // 保存当前预览字体大小
 
@@ -39,10 +59,14 @@
         if (previousState.currentTab) {
             currentTab = previousState.currentTab;
         }
+        if (previousState.color) {
+            setSelectedDecorationColor(previousState.color);
+        }
     }
 
     /** 与磁盘或上次成功「保存并继续」一致的正文；严格全文比较 */
     let committedText = diskCommittedBaseline;
+    let committedColor = diskCommittedColor;
 
     const discardOverlay = document.getElementById('discard-confirm-overlay');
     const discardBtnBack = document.getElementById('discard-confirm-back');
@@ -53,7 +77,8 @@
     }
 
     function isEditorDirty() {
-        return normalizeForDirty(textarea.value) !== normalizeForDirty(committedText);
+        return normalizeForDirty(textarea.value) !== normalizeForDirty(committedText)
+            || getSelectedDecorationColor() !== committedColor;
     }
 
     /** 与扩展侧 Tab 标题同步：仅在实际变化时上报 */
@@ -147,7 +172,8 @@
         vscode.setState({
             content: textarea.value,
             previewVisible: previewVisible,
-            currentTab: currentTab
+            currentTab: currentTab,
+            color: getSelectedDecorationColor()
         });
     }
 
@@ -473,7 +499,8 @@
         const content = textarea.value;
         vscode.postMessage({
             command: 'save',
-            content: content
+            content: content,
+            color: getSelectedDecorationColor()
         });
     };
     
@@ -747,6 +774,18 @@
         saveState();
         scheduleDirtyPostToHost();
     });
+
+    if (decorationColorSelect) {
+        decorationColorSelect.addEventListener('click', function(e) {
+            const swatch = e.target.closest('.decoration-color-swatch');
+            if (!swatch) {
+                return;
+            }
+            setSelectedDecorationColor(swatch.getAttribute('data-key'));
+            saveState();
+            scheduleDirtyPostToHost();
+        });
+    }
     
     // 处理键盘导航
     textarea.addEventListener('keydown', function(e) {
@@ -890,7 +929,8 @@
     window.saveAndContinue = function() {
         vscode.postMessage({
             command: 'saveAndContinue',
-            content: textarea.value
+            content: textarea.value,
+            color: getSelectedDecorationColor()
         });
     };
     
@@ -917,6 +957,7 @@
             case 'editorBaselineCommitted':
                 if (typeof message.text === 'string') {
                     committedText = message.text;
+                    committedColor = getSelectedDecorationColor();
                     saveState();
                 }
                 postDirtyStateToHost();
@@ -924,6 +965,7 @@
             case 'editorSaveSkipped':
                 if (message.reason === 'no-op' && typeof message.text === 'string') {
                     committedText = message.text;
+                    committedColor = getSelectedDecorationColor();
                     saveState();
                 }
                 // reason === 'empty'：不更新基线（仍视为相对磁盘的未提交空稿）

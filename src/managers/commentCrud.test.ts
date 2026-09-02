@@ -159,6 +159,22 @@ describe('CommentCRUD', () => {
 
       expect(comment1.id).not.toBe(comment2.id);
     });
+
+    it('传入非默认颜色时应写入 color 字段', async () => {
+      const mockUri = { fsPath: '/test/file.ts' } as any;
+      const comment = await crud.addComment(mockUri, 10, 'colored', 'line', 'blue');
+
+      expect(comment.color).toBe('blue');
+    });
+
+    it('未传颜色或 default 时不应写入 color 字段', async () => {
+      const mockUri = { fsPath: '/test/file.ts' } as any;
+      const without = await crud.addComment(mockUri, 10, 'plain', 'line');
+      const asDefault = await crud.addComment(mockUri, 20, 'plain default', 'line', 'default');
+
+      expect(without.color).toBeUndefined();
+      expect(asDefault.color).toBeUndefined();
+    });
   });
 
   describe('editComment', () => {
@@ -203,6 +219,63 @@ describe('CommentCRUD', () => {
     it('应该返回false当文件没有注释', () => {
       const success = crud.editComment('/test/nonexistent.ts', 'test-id', 'new content');
       expect(success).toBe(false);
+    });
+
+    it('未传 color 时只改正文并保留原颜色', () => {
+      const comments = storage.getCommentsRef();
+      comments['/test/file.ts'] = [
+        {
+          id: 'test-id',
+          line: 10,
+          content: 'old content',
+          timestamp: Date.now(),
+          originalLine: 10,
+          lineContent: 'const x = 1;',
+          color: 'blue'
+        }
+      ];
+
+      crud.editComment('/test/file.ts', 'test-id', 'new content');
+
+      expect(comments['/test/file.ts'][0].content).toBe('new content');
+      expect(comments['/test/file.ts'][0].color).toBe('blue');
+    });
+
+    it('传入非默认颜色时应更新 color 字段', () => {
+      const comments = storage.getCommentsRef();
+      comments['/test/file.ts'] = [
+        {
+          id: 'test-id',
+          line: 10,
+          content: 'content',
+          timestamp: Date.now(),
+          originalLine: 10,
+          lineContent: 'const x = 1;'
+        }
+      ];
+
+      crud.editComment('/test/file.ts', 'test-id', 'content', 'red');
+
+      expect(comments['/test/file.ts'][0].color).toBe('red');
+    });
+
+    it('传入 default 时应删除 color 字段', () => {
+      const comments = storage.getCommentsRef();
+      comments['/test/file.ts'] = [
+        {
+          id: 'test-id',
+          line: 10,
+          content: 'content',
+          timestamp: Date.now(),
+          originalLine: 10,
+          lineContent: 'const x = 1;',
+          color: 'green'
+        }
+      ];
+
+      crud.editComment('/test/file.ts', 'test-id', 'content', 'default');
+
+      expect(comments['/test/file.ts'][0].color).toBeUndefined();
     });
   });
 

@@ -8,6 +8,14 @@
 /**
  * 本地注释接口
  */
+export type CommentDecorationColor =
+  | 'default'
+  | 'blue'
+  | 'green'
+  | 'amber'
+  | 'red'
+  | 'purple';
+
 export interface LocalComment {
   id: string;
   line: number; // 当前行号
@@ -17,6 +25,7 @@ export interface LocalComment {
   lineContent: string; // 该行的内容，用于智能定位和作为代码快照
   isMatched?: boolean; // 标记注释是否匹配到代码
   isShared?: boolean; // 标记注释是否是共享的
+  color?: CommentDecorationColor;
 }
 
 /**

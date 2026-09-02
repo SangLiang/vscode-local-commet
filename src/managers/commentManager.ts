@@ -245,15 +245,15 @@ export class CommentManager implements vscode.Disposable {
         return this.crud.getCommentById(uri.fsPath, commentId);
     }
 
-    public async addComment(uri: vscode.Uri, line: number, content: string): Promise<void> {
+    public async addComment(uri: vscode.Uri, line: number, content: string, color?: string): Promise<void> {
         const document = await vscode.workspace.openTextDocument(uri);
         const lineContent = document.lineAt(line).text;
-        await this.crud.addComment(uri, line, content, lineContent.trim());
+        await this.crud.addComment(uri, line, content, lineContent.trim(), color);
         await this._saveAndFire();
     }
 
-    public async editComment(uri: vscode.Uri, commentId: string, newContent: string): Promise<void> {
-        const success = this.crud.editComment(uri.fsPath, commentId, newContent);
+    public async editComment(uri: vscode.Uri, commentId: string, newContent: string, color?: string): Promise<void> {
+        const success = this.crud.editComment(uri.fsPath, commentId, newContent, color);
         if (success) {
             await this._saveAndFire();
         }

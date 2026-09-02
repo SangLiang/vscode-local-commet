@@ -6,7 +6,7 @@ import { getCodeContext, showMarkdownWebviewInput } from './markdownWebview';
 import { getFileNameFromUri } from '../utils/pathUtils';
 import { getErrorMessage } from '../utils/utils';
 import { logger } from '../utils/logger';
-import type { MarkdownContextInfo, UpdatedContextInfo, MarkdownSaveOutcome } from './command/comment';
+import { MarkdownContextInfo, MarkdownSaveCallback } from './command/comment';
 
 export async function openCommentEditor(options: {
     context: vscode.ExtensionContext;
@@ -14,12 +14,8 @@ export async function openCommentEditor(options: {
     projectManager: ProjectManager;
     authManager: AuthManager;
     uri: vscode.Uri;
-    comment: Pick<LocalComment, 'id' | 'line' | 'content' | 'lineContent' | 'isShared'>;
-    onSaveAndContinue: (
-        content: string,
-        updatedContextInfo?: UpdatedContextInfo,
-        callback?: () => void
-    ) => void | Promise<MarkdownSaveOutcome>;
+    comment: Pick<LocalComment, 'id' | 'line' | 'content' | 'lineContent' | 'isShared' | 'color'>;
+    onSaveAndContinue: MarkdownSaveCallback;
 }): Promise<void> {
     const { context, commentManager, projectManager, authManager, uri, comment, onSaveAndContinue } = options;
 
@@ -73,7 +69,8 @@ export async function openCommentEditor(options: {
             '',
             onSaveAndContinue,
             authManager.isLoggedIn(),
-            comment.isShared || false
+            comment.isShared || false,
+            comment.color
         );
     } catch (error) {
         logger.error('编辑注释失败:', error);

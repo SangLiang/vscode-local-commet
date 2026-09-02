@@ -7,8 +7,9 @@ import { normalizeFilePath, getErrorMessage } from '../utils/utils';
 import { WebviewUtils, ResourceUris, buildMarkdownPanelResourceOptions, buildMarkdownLocalResourceRoots, postMarkdownPreviewConfig, buildMarkdownScriptTags, buildContextHtml } from '../utils/webviewUtils';
 import { logger } from '../utils/logger';
 import { IPC_MESSAGES, COMMANDS, DELAY_TIMES } from '../constants';
-import { UpdatedContextInfo, MarkdownContextInfo, MarkdownSaveOutcome } from './command/comment';
+import { UpdatedContextInfo, MarkdownContextInfo, MarkdownSaveCallback } from './command/comment';
 import { EditorUtils } from '../utils/editorUtils';
+import { buildDecorationColorSelectHtml } from '../utils/commentDecorationColor';
 
 // 辅助函数：获取代码上下文（前后5行）
 export async function getCodeContext(uri: vscode.Uri, lineNumber: number, contextLines: number = 5): Promise<{
@@ -57,13 +58,10 @@ export async function showMarkdownWebviewInput(
     existingContent: string = '',
     contextInfo?: MarkdownContextInfo,
     markedJsUri: string = '',
-    onSaveAndContinue?: (
-        content: string,
-        updatedContextInfo?: UpdatedContextInfo,
-        callback?: () => void
-    ) => void | Promise<MarkdownSaveOutcome>,
+    onSaveAndContinue?: MarkdownSaveCallback,
     isUserLoggedIn: boolean = false,
-    isCommentShared: boolean = false
+    isCommentShared: boolean = false,
+    existingColor?: string
 ): Promise<{content: string, contextInfo?: MarkdownContextInfo} | undefined> {
     // 保存当前活动编辑器的引用，以便稍后恢复焦点
     const activeEditor = vscode.window.activeTextEditor;
@@ -124,7 +122,8 @@ export async function showMarkdownWebviewInput(
             isUserLoggedIn,
             isCommentShared,
             panel.webview,
-            resourceUris
+            resourceUris,
+            existingColor
         );
 
         // 异步加载标签建议和代码上下文，避免阻塞界面显示
@@ -195,7 +194,7 @@ export async function showMarkdownWebviewInput(
                                         onSaveAndContinue(message.content, contextInfo, () => {
                                             panel.dispose();
                                             EditorUtils.restoreFocus(activeEditor);
-                                        })
+                                        }, message.color)
                                     );
                                 } catch (err) {
                                     logger.error('保存并退出时发生错误:', err);
@@ -211,7 +210,7 @@ export async function showMarkdownWebviewInput(
                                     const outcome = await Promise.resolve(
                                         onSaveAndContinue(message.content, contextInfo, () => {
                                             vscode.window.showInformationMessage('保存成功');
-                                        })
+                                        }, message.color)
                                     );
                                     if (outcome === 'committed') {
                                         panel.title = panelTabBaseTitle;
@@ -448,7 +447,8 @@ function getMarkdownWebviewContent(
     isUserLoggedIn: boolean = false,
     isCommentShared: boolean = false,
     webview?: vscode.Webview, // 添加webview参数
-    resourceUris?: ResourceUris
+    resourceUris?: ResourceUris,
+    existingColor?: string
 ): string {
     // 生成nonce用于CSP
     const nonce = WebviewUtils.getNonce();
@@ -519,6 +519,7 @@ function getMarkdownWebviewContent(
         previewFindJsScript: scriptTags.previewFindJsScript,
         tagSuggestions: tagSuggestions,
         cspSource: webview ? webview.cspSource : "'self'", // 从webview获取CSP源
+        colorSelectHtml: buildDecorationColorSelectHtml(existingColor),
         shareButtonHtml: (isUserLoggedIn && !isCommentShared) ?
             `<button class="share-btn" onclick="share()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

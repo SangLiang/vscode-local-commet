@@ -41,6 +41,7 @@ import * as fs from 'fs';
 
 import type { UpdatedContextInfo, MarkdownSaveOutcome } from './command/comment';
 import type { FileComments } from '../managers/commentTypes';
+import { isCommentEditNoop } from '../utils/commentDecorationColor';
 
 function formatGroupDisplayName(fileName: string): string {
     return fileName.replace(/\.json$/i, '');
@@ -817,6 +818,8 @@ export class CommentManageWebviewPanel {
 
         const originalLine = comment.line;
 
+        const originalColor = comment.color;
+
 
 
         await openCommentEditor({
@@ -839,13 +842,15 @@ export class CommentManageWebviewPanel {
 
                 updatedContextInfo?: UpdatedContextInfo,
 
-                callback?: () => void
+                callback?: () => void,
+
+                color?: string
 
             ): Promise<MarkdownSaveOutcome> => {
 
                 try {
 
-                    if (savedContent === originalContent) {
+                    if (isCommentEditNoop(savedContent, originalContent, color, originalColor)) {
 
                         callback?.();
 
@@ -879,7 +884,7 @@ export class CommentManageWebviewPanel {
 
 
 
-                    await this._commentManager.editComment(uri, row.id, savedContent);
+                    await this._commentManager.editComment(uri, row.id, savedContent, color);
 
                     this.refreshRows();
 

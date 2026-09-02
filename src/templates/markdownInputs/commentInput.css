@@ -417,8 +417,35 @@ button {
 }
 
 /* 放在 .prompt-row 里时靠右对齐 */
-.prompt-row .scroll-sync-toggle {
+.prompt-row .decoration-color-picker {
     margin-left: auto;
+}
+
+.decoration-color-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.decoration-color-swatch {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.45));
+    border-radius: 3px;
+    cursor: pointer;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.decoration-color-swatch.is-selected {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+}
+
+.prompt-row .scroll-sync-toggle {
+    margin-left: 0;
 }
 
 .scroll-sync-toggle {

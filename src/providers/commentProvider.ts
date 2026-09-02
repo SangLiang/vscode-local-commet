@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { COMMANDS } from '../constants';
 import { TimerManager } from '../utils/timerUtils';
 import { extractTagsFromMarkdown, replaceTagReferencesInMarkdown } from '../utils/tagParser';
+import { resolveCommentDecorationColor } from '../utils/commentDecorationColor';
 
 export class CommentProvider implements vscode.Disposable {
     private decorationType: vscode.TextEditorDecorationType;
@@ -160,7 +161,7 @@ export class CommentProvider implements vscode.Disposable {
 
             // 优先显示本地注释的内容和行号标识
             if (localComments.length > 0) {
-                const normalDecoration = this.createSingleDecoration(lineComments, line, editor);
+                const normalDecoration = this.createSingleDecoration(localComments, line);
                 if (this.hasInlineContent(normalDecoration)) {
                     normalDecorations.push(normalDecoration);
                 }
@@ -173,28 +174,30 @@ export class CommentProvider implements vscode.Disposable {
     }
 
     // 创建注释的装饰器
-    private createSingleDecoration(comments: (LocalComment | SharedComment)[], line: vscode.TextLine, editor: vscode.TextEditor): vscode.DecorationOptions {
+    private createSingleDecoration(comments: (LocalComment | SharedComment)[], line: vscode.TextLine): vscode.DecorationOptions {
         const lineLength = line.text.length;
 
         // 只显示本地注释，过滤掉共享注释
         const localComments = comments.filter(comment => !('userId' in comment));
 
         let contentText = '';
+        let color: string | undefined;
         if (localComments.length > 0) {
             contentText = ` ${localComments[0].content}`;
+            color = localComments[0].color;
         }
 
         return {
             range: new vscode.Range(line.lineNumber, lineLength, line.lineNumber, lineLength),
-            renderOptions: { after: this.buildInlineAttachment(contentText) }
+            renderOptions: { after: this.buildInlineAttachment(contentText, color) }
         };
     }
 
     // 构建单个注释的行内附件渲染选项（实例级，覆盖类型级默认色）
-    private buildInlineAttachment(contentText: string): vscode.ThemableDecorationAttachmentRenderOptions {
+    private buildInlineAttachment(contentText: string, color?: string): vscode.ThemableDecorationAttachmentRenderOptions {
         return {
             contentText,
-            color: '#6B7283',
+            color: resolveCommentDecorationColor(color),
             fontStyle: 'italic',
             margin: '0 0 0 2em'
         };

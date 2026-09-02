@@ -14,6 +14,7 @@ import { getErrorMessage } from '../../utils/utils';
 import { logger } from '../../utils/logger';
 import { COMMANDS } from '../../constants';
 import { DialogUtils } from '../../utils/dialogUtils';
+import { isCommentEditNoop } from '../../utils/commentDecorationColor';
 
 /**
  * 更新上下文信息接口
@@ -40,6 +41,13 @@ export type MarkdownSaveOutcome =
     | 'skipped-empty'
     | 'aborted'
     | 'failed';
+
+export type MarkdownSaveCallback = (
+    content: string,
+    updatedContextInfo?: UpdatedContextInfo,
+    callback?: () => void,
+    color?: string
+) => void | Promise<MarkdownSaveOutcome>;
 
 export function registerCommentCommands(
     commentManager: CommentManager,
@@ -107,18 +115,19 @@ export function registerCommentCommands(
         uri: vscode.Uri,
         commentId: string,
         line: number,
-        originalContent: string
+        originalContent: string,
+        originalColor?: string
     ) {
         // 辅助函数：处理编辑注释的逻辑
-        async function handleEditComment(savedContent: string, updatedContextInfo?: UpdatedContextInfo) {
+        async function handleEditComment(savedContent: string, updatedContextInfo?: UpdatedContextInfo, color?: string) {
             // 如果行号有变化，需要先更新注释的行号
             if (updatedContextInfo?.lineNumber !== undefined && updatedContextInfo.lineNumber !== line) {
                 await commentManager.updateCommentLine(uri, commentId, updatedContextInfo.lineNumber, updatedContextInfo.lineContent || '');
             }
-            return commentManager.editComment(uri, commentId, savedContent);
+            return commentManager.editComment(uri, commentId, savedContent, color);
         }
 
-        return async (savedContent: string, updatedContextInfo?: UpdatedContextInfo, callback?: () => void): Promise<MarkdownSaveOutcome> => {
+        return async (savedContent: string, updatedContextInfo?: UpdatedContextInfo, callback?: () => void, color?: string): Promise<MarkdownSaveOutcome> => {
             try {
                 // 对于添加操作，检查内容是否为空
                 if (operation === 'add' && (!savedContent || savedContent.trim() === '')) {
@@ -126,8 +135,8 @@ export function registerCommentCommands(
                     return 'skipped-empty';
                 }
                 
-                // 对于编辑操作，检查内容是否发生变化
-                if (operation === 'edit' && savedContent === originalContent) {
+                // 对于编辑操作，检查内容或颜色是否发生变化
+                if (operation === 'edit' && isCommentEditNoop(savedContent, originalContent, color, originalColor)) {
                     callback && callback();
                     return 'skipped-noop';
                 }
@@ -162,8 +171,8 @@ export function registerCommentCommands(
                     }
                 }
                 const promise = operation === 'edit' 
-                    ? handleEditComment(savedContent, updatedContextInfo)
-                    : commentManager.addComment(uri, finalLine, savedContent);
+                    ? handleEditComment(savedContent, updatedContextInfo, color)
+                    : commentManager.addComment(uri, finalLine, savedContent, color);
                 
                 await promise;
                 tagManager.updateTags(commentManager.getAllComments());
@@ -261,7 +270,7 @@ export function registerCommentCommands(
 
     async function executeEditComment(
         uri: vscode.Uri,
-        comment: { id: string; line: number; content: string; lineContent: string; isShared?: boolean }
+        comment: Pick<LocalComment, 'id' | 'line' | 'content' | 'lineContent' | 'isShared' | 'color'>
     ) {
         await openCommentEditor({
             context: context!,
@@ -270,7 +279,7 @@ export function registerCommentCommands(
             authManager,
             uri,
             comment,
-            onSaveAndContinue: createSaveAndContinueCallback('edit', uri, comment.id, comment.line, comment.content),
+            onSaveAndContinue: createSaveAndContinueCallback('edit', uri, comment.id, comment.line, comment.content, comment.color),
         });
     }
 
