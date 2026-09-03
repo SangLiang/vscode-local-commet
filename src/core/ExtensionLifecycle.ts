@@ -143,9 +143,9 @@ export class ExtensionLifecycle {
     }
 
     /**
-     * 停用扩展 - 清理所有资源
+     * 停用扩展 - 先 await 注释刷盘，再同步清理资源
      */
-    deactivate(): void {
+    async deactivate(): Promise<void> {
         logger.info('本地注释插件正在停用');
 
         try {
@@ -163,8 +163,9 @@ export class ExtensionLifecycle {
                 this.statusBarManager.dispose();
             }
 
-            // 清理容器
+            // 先刷盘再 dispose，尽量在宿主允许的宽限内写完
             if (this.container) {
+                await this.container.flushComments();
                 this.container.dispose();
             }
 

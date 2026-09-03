@@ -88,6 +88,13 @@ export class ExtensionContainer {
     }
 
     /**
+     * 停用前刷盘注释（await 写链）；应在 dispose 之前调用
+     */
+    async flushComments(): Promise<void> {
+        await this.commentManager.flushStorage();
+    }
+
+    /**
      * 释放所有资源
      */
     dispose(): void {

@@ -94,7 +94,14 @@ export class CommentManager implements vscode.Disposable {
     }
 
     /**
-     * 扩展停用时由 ExtensionContainer 调用
+     * 停用前刷盘：await 防抖 pending / 在途写链结束（由 deactivate 调用）
+     */
+    async flushStorage(): Promise<void> {
+        await this.storage.flush();
+    }
+
+    /**
+     * 扩展停用时由 ExtensionContainer 调用（同步清理；刷盘应先走 flushStorage）
      */
     dispose(): void {
         void this.storage.flush();

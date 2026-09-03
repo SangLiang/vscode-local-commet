@@ -478,5 +478,85 @@ describe('CommentStorage', () => {
 
       expect(JSON.parse(diskContent).comments['/test/file.ts'][0].content).toBe('v2');
     });
+
+    it('flush：有 pending 防抖时应入队写入，且 await 到 writeFile 完成才返回', async () => {
+      let resolveWrite: (() => void) | undefined;
+      let writeStarted = false;
+
+      vi.mocked(fs.promises.writeFile).mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            writeStarted = true;
+            resolveWrite = resolve;
+          })
+      );
+
+      storage = new CommentStorage(mockContext);
+      storage.getCommentsRef()['/test/file.ts'] = [
+        {
+          id: '1',
+          line: 1,
+          content: 'pending',
+          timestamp: 1,
+          originalLine: 1,
+          lineContent: 'code'
+        }
+      ];
+
+      storage.scheduleSave();
+      // 不推进 timer：模拟关窗时防抖尚未触发
+      const flushPromise = storage.flush();
+      await vi.waitFor(() => expect(writeStarted).toBe(true));
+
+      let flushed = false;
+      flushPromise.then(() => {
+        flushed = true;
+      });
+      await Promise.resolve();
+      expect(flushed).toBe(false);
+
+      resolveWrite!();
+      await flushPromise;
+      expect(flushed).toBe(true);
+    });
+
+    it('flush：已有 in-flight 写盘时应等到写链结束再返回', async () => {
+      let resolveWrite: (() => void) | undefined;
+
+      vi.mocked(fs.promises.writeFile).mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveWrite = resolve;
+          })
+      );
+
+      storage = new CommentStorage(mockContext);
+      storage.getCommentsRef()['/test/file.ts'] = [
+        {
+          id: '1',
+          line: 1,
+          content: 'inflight',
+          timestamp: 1,
+          originalLine: 1,
+          lineContent: 'code'
+        }
+      ];
+
+      storage.scheduleSave();
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.waitFor(() => expect(resolveWrite).toBeTypeOf('function'));
+
+      const flushPromise = storage.flush();
+      let flushed = false;
+      flushPromise.then(() => {
+        flushed = true;
+      });
+      await Promise.resolve();
+      expect(flushed).toBe(false);
+
+      resolveWrite!();
+      await flushPromise;
+      expect(flushed).toBe(true);
+    });
   });
 });
