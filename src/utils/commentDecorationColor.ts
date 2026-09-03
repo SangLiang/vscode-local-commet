@@ -63,3 +63,21 @@ export function buildDecorationColorSelectHtml(selected?: string): string {
   }).join('');
   return `<div class="decoration-color-picker" id="decorationColorSelect" role="radiogroup" aria-label="行尾注释颜色" data-value="${selectedKey}">${swatches}</div>`;
 }
+
+export function resolveCommentTreeIcon(
+  color: string | undefined,
+  isMatchable: boolean
+): { iconId: string; colorHex?: string } {
+  if (!isMatchable) {
+    return { iconId: 'comment-unresolved' };
+  }
+  if (isCommentDecorationColor(color) && color !== 'default') {
+    return { iconId: 'comment', colorHex: COLOR_HEX_BY_KEY[color] };
+  }
+  return { iconId: 'comment' };
+}
+
+/** 静态 SVG：fill 写死 hex，避免 ThemeIcon 在树选中时被 list.activeSelectionForeground 盖掉 */
+export function buildCommentTreeIconSvg(hex: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="${hex}" d="M14.5 2h-13l-.5.5v9l.5.5H4v2.5l.854.354L7.707 12H14.5l.5-.5v-9l-.5-.5zm-.5 9H7.5l-.354.146L5 13.293V11.5l-.5-.5H2V3h12v8z"/></svg>`;
+}

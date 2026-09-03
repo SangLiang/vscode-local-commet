@@ -4,6 +4,8 @@ import {
   colorKeyForStorage,
   isCommentEditNoop,
   buildDecorationColorSelectHtml,
+  resolveCommentTreeIcon,
+  buildCommentTreeIconSvg,
   DEFAULT_COMMENT_DECORATION_HEX
 } from './commentDecorationColor';
 
@@ -76,5 +78,32 @@ describe('buildDecorationColorSelectHtml', () => {
     expect(html).not.toContain('<select');
     expect(html).not.toContain('<option');
     expect(html).not.toContain('>蓝<');
+  });
+});
+
+describe('resolveCommentTreeIcon', () => {
+  it('未匹配时始终用 unresolved 图标且不上色', () => {
+    expect(resolveCommentTreeIcon('blue', false)).toEqual({ iconId: 'comment-unresolved' });
+    expect(resolveCommentTreeIcon(undefined, false)).toEqual({ iconId: 'comment-unresolved' });
+  });
+
+  it('可匹配且有颜色时返回烘焙进 SVG 的 hex', () => {
+    expect(resolveCommentTreeIcon('red', true)).toEqual({
+      iconId: 'comment',
+      colorHex: '#EF4444'
+    });
+  });
+
+  it('可匹配但无颜色时用 comment 图标且不上色', () => {
+    expect(resolveCommentTreeIcon('default', true)).toEqual({ iconId: 'comment' });
+    expect(resolveCommentTreeIcon(undefined, true)).toEqual({ iconId: 'comment' });
+  });
+});
+
+describe('buildCommentTreeIconSvg', () => {
+  it('把 hex 写进 fill，不使用 currentColor', () => {
+    const svg = buildCommentTreeIconSvg('#EF4444');
+    expect(svg).toContain('fill="#EF4444"');
+    expect(svg).not.toContain('currentColor');
   });
 });

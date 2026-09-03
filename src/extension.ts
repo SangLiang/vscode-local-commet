@@ -18,8 +18,8 @@ export async function activate(context: vscode.ExtensionContext) {
     await lifecycle.activate();
 }
 
-export function deactivate() {
+export async function deactivate() {
     if (lifecycle) {
-        lifecycle.deactivate();
+        await lifecycle.deactivate();
     }
 }

@@ -5,6 +5,23 @@ import { FileHeatManager } from '../managers/fileHeatManager';
 import { BookmarkManager, Bookmark } from '../managers/bookmarkManager';
 import { logger } from '../utils/logger';
 import { COMMANDS } from '../constants';
+import { resolveCommentTreeIcon, buildCommentTreeIconSvg } from '../utils/commentDecorationColor';
+
+const commentTreeIconUriCache = new Map<string, vscode.Uri>();
+
+function commentTreeIconUri(hex: string): vscode.Uri {
+    const cached = commentTreeIconUriCache.get(hex);
+    if (cached) {
+        return cached;
+    }
+    const svg = buildCommentTreeIconSvg(hex);
+    const uri = vscode.Uri.from({
+        scheme: 'data',
+        path: `image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+    });
+    commentTreeIconUriCache.set(hex, uri);
+    return uri;
+}
 
 export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeItem>, vscode.Disposable {
     private _onDidChangeTreeData: vscode.EventEmitter<CommentTreeItem | undefined | null | void> = new vscode.EventEmitter<CommentTreeItem | undefined | null | void>();
@@ -196,15 +213,14 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
             markdownTooltip.appendMarkdown(comment.content);
             
             if (!isMatchable) {
-                // 添加隐藏状态的提示
                 markdownTooltip.appendMarkdown('\n\n*注释当前无法匹配到代码，已被隐藏*');
-                // 使用暗色主题图标
-                commentNode.iconPath = new vscode.ThemeIcon('comment-unresolved');
-                // 应用特殊CSS类
                 commentNode.resourceUri = vscode.Uri.parse(`hidden-comment:${comment.id}`);
-            } else {
-                commentNode.iconPath = new vscode.ThemeIcon('comment');
             }
+
+            const treeIcon = resolveCommentTreeIcon(comment.color, isMatchable);
+            commentNode.iconPath = treeIcon.colorHex
+                ? commentTreeIconUri(treeIcon.colorHex)
+                : new vscode.ThemeIcon(treeIcon.iconId);
             
             commentNode.tooltip = markdownTooltip;
             
