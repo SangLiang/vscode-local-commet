@@ -84,7 +84,6 @@ export const COMMANDS = {
     
     // Tag 关系图命令
     SHOW_TAG_RELATION_GRAPH: 'localComment.showTagRelationGraph',
-    SHOW_TAG_RELATION_GRAPH_FROM_PREVIEW: 'localComment.showTagRelationGraphFromPreview',
     
     // 书签相关命令
     ADD_BOOKMARK: 'localComment.addBookmark',

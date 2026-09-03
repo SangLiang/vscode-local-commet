@@ -411,4 +411,72 @@ describe('CommentStorage', () => {
       expect(storage.getStorageFilePath()).not.toBe(originalPath);
     });
   });
+
+  describe('写盘竞态（P0-1）', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // 复现：防抖写与立即写重叠时，若并行落盘，旧 writeFile 后完成会盖掉新数据。
+    // 修复后：写盘串行 + 入队快照，旧写入先完成再写新快照，最终磁盘为 v2。
+    it('重叠写盘时，先发起的旧写入后完成不应覆盖新数据', async () => {
+      type PendingWrite = { content: string; resolve: () => void };
+      const pending: PendingWrite[] = [];
+      let diskContent = '';
+
+      // 可控完成顺序的写盘 mock：调用时只入队，resolve 后才视为写入磁盘
+      vi.mocked(fs.promises.writeFile).mockImplementation(async (_path, data) => {
+        const content = String(data);
+        await new Promise<void>((resolve) => {
+          pending.push({
+            content,
+            resolve: () => {
+              diskContent = content;
+              resolve();
+            }
+          });
+        });
+      });
+
+      storage = new CommentStorage(mockContext);
+      const comments = storage.getCommentsRef();
+      comments['/test/file.ts'] = [
+        {
+          id: '1',
+          line: 1,
+          content: 'v1',
+          timestamp: 1,
+          originalLine: 1,
+          lineContent: 'code'
+        }
+      ];
+
+      // ① 防抖保存触发，旧写入（v1）开始但未完成
+      storage.scheduleSave();
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      expect(JSON.parse(pending[0].content).comments['/test/file.ts'][0].content).toBe('v1');
+
+      // ② 内存改为 v2 并立即 saveComments（串行排队，此时仍只有一笔 in-flight writeFile）
+      comments['/test/file.ts'][0].content = 'v2';
+      const savePromise = storage.saveComments();
+      await Promise.resolve();
+      expect(pending).toHaveLength(1);
+
+      // ③ 旧写入完成 → 串行发起 v2 写入
+      pending[0].resolve();
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+      expect(JSON.parse(pending[1].content).comments['/test/file.ts'][0].content).toBe('v2');
+
+      // ④ 新写入完成 → 最终磁盘必须为 v2
+      pending[1].resolve();
+      await savePromise;
+
+      expect(JSON.parse(diskContent).comments['/test/file.ts'][0].content).toBe('v2');
+    });
+  });
 });

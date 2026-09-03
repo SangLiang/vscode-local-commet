@@ -29,6 +29,8 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
   private _shareComments: FileComments = {};
   private _saveTimer: NodeJS.Timeout | null = null;
   private _timerManager: TimerManager = new TimerManager();
+  /** 串行写盘链：避免重叠 writeFile 导致旧快照后完成盖掉新数据 */
+  private _writeChain: Promise<void> = Promise.resolve();
 
   constructor(context: vscode.ExtensionContext) {
     super(context);
@@ -265,47 +267,70 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
 
   // ============== 数据保存 ==============
 
+  private _cancelScheduledSave(): void {
+    if (this._saveTimer) {
+      this._timerManager.clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+  }
+
   /**
    * 立即保存注释数据到磁盘（用于配置切换等需要立即落盘的场景）
    */
   async saveComments(): Promise<void> {
-    await this._writeToDisk();
+    this._cancelScheduledSave();
+    await this._enqueueWrite();
   }
 
   /**
    * 防抖保存：合并高频调用，100ms 后写盘（用于 CRUD 操作等高频路径）
    */
   scheduleSave(): void {
-    if (this._saveTimer) {
-      this._timerManager.clearTimeout(this._saveTimer);
-    }
+    this._cancelScheduledSave();
     this._saveTimer = this._timerManager.setTimeout(() => {
       this._saveTimer = null;
-      void this._writeToDisk();
+      void this._enqueueWrite();
     }, DELAY_TIMES.ASYNC_SAVE);
   }
 
   /**
-   * 立即刷盘：取消防抖 timer，立即执行写入（用于 dispose 时确保数据不丢失）
+   * 立即刷盘：取消防抖 timer；若有 pending 则入队写入，并 await 写链结束
    */
-  flush(): void {
+  async flush(): Promise<void> {
     if (this._saveTimer) {
-      this._timerManager.clearTimeout(this._saveTimer);
-      this._saveTimer = null;
-      void this._writeToDisk();
+      this._cancelScheduledSave();
+      await this._enqueueWrite();
+    } else {
+      await this._writeChain;
     }
+  }
+
+  /**
+   * 入队一次写盘：入队时快照 JSON，保证串行执行时按发起时的内容落盘
+   */
+  private _enqueueWrite(): Promise<void> {
+    const payload = JSON.stringify(
+      {
+        comments: this._comments,
+        shareComments: this._shareComments
+      },
+      null,
+      2
+    );
+
+    const run = this._writeChain.then(() => this._writePayloadToDisk(payload));
+    this._writeChain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   }
 
   /**
    * 实际写盘逻辑（异步，不阻塞 UI 线程）
    */
-  private async _writeToDisk(): Promise<void> {
+  private async _writePayloadToDisk(payload: string): Promise<void> {
     try {
-      const dataToSave = {
-        comments: this._comments,
-        shareComments: this._shareComments
-      };
-
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (workspaceFolders && workspaceFolders.length > 0) {
         const workspacePath = workspaceFolders[0].uri.fsPath;
@@ -316,7 +341,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
         } catch (err) {
           if (StoragePathUtils.isWritePermissionError(err)) {
             if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-              await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+              await fs.promises.writeFile(paths.oldCommentsFile, payload);
             } else {
               vscode.window.showErrorMessage('无法写入项目目录（只读或权限不足），请检查 .vscode 目录权限');
             }
@@ -329,19 +354,19 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
 
         if (currentCommentsFile) {
           try {
-            await fs.promises.writeFile(currentCommentsFile, JSON.stringify(dataToSave, null, 2));
+            await fs.promises.writeFile(currentCommentsFile, payload);
           } catch (err) {
             if (StoragePathUtils.isWritePermissionError(err) && StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-              await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+              await fs.promises.writeFile(paths.oldCommentsFile, payload);
             } else {
               throw err;
             }
           }
         } else if (StoragePathUtils.fileExists(paths.oldCommentsFile)) {
-          await fs.promises.writeFile(paths.oldCommentsFile, JSON.stringify(dataToSave, null, 2));
+          await fs.promises.writeFile(paths.oldCommentsFile, payload);
         } else {
           const defaultFile = path.join(paths.commentsDir, 'comments.json');
-          await fs.promises.writeFile(defaultFile, JSON.stringify(dataToSave, null, 2));
+          await fs.promises.writeFile(defaultFile, payload);
           const config = StoragePathUtils.loadConfig(workspacePath);
           config.comments = 'comments.json';
           await StoragePathUtils.saveConfig(config);
@@ -351,7 +376,7 @@ export class CommentStorage extends WorkspaceJsonStorageBase {
         if (!fs.existsSync(storageDir)) {
           fs.mkdirSync(storageDir, { recursive: true });
         }
-        await fs.promises.writeFile(this._storageFile, JSON.stringify(dataToSave, null, 2));
+        await fs.promises.writeFile(this._storageFile, payload);
       }
 
       this._updateStorageFile(this._resolveInitialStorageFile(this._context));

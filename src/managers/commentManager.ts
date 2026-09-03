@@ -97,7 +97,7 @@ export class CommentManager implements vscode.Disposable {
      * 扩展停用时由 ExtensionContainer 调用
      */
     dispose(): void {
-        this.storage.flush();
+        void this.storage.flush();
         this._timerManager.dispose();
         this._onDidChangeComments.dispose();
         this._onDidChangeSharedComments.dispose();

@@ -9,7 +9,6 @@ import { resolveCommentDecorationColor } from '../utils/commentDecorationColor';
 
 export class CommentProvider implements vscode.Disposable {
     private decorationType: vscode.TextEditorDecorationType;
-    private tagDecorationType: vscode.TextEditorDecorationType;
     private commentManager: CommentManager;
     private isVisible: boolean = true;
     private disposables: vscode.Disposable[] = [];
@@ -28,9 +27,6 @@ export class CommentProvider implements vscode.Disposable {
 
         // 行内注释装饰类型（位置/样式集中在 buildDecorationRenderOptions，改 before↔after 只需改那一处）
         this.decorationType = vscode.window.createTextEditorDecorationType(this.buildDecorationRenderOptions(false));
-
-        // 标签装饰器（当前未使用，但保留以避免错误）
-        this.tagDecorationType = vscode.window.createTextEditorDecorationType({});
 
         // 监听编辑器变化
         this.disposables.push(
@@ -170,7 +166,6 @@ export class CommentProvider implements vscode.Disposable {
         }
 
         editor.setDecorations(this.decorationType, normalDecorations);
-        editor.setDecorations(this.tagDecorationType, []); // 标签装饰器（当前未使用）
     }
 
     // 创建注释的装饰器
@@ -252,14 +247,12 @@ export class CommentProvider implements vscode.Disposable {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             editor.setDecorations(this.decorationType, []);
-            editor.setDecorations(this.tagDecorationType, []);
         }
     }
 
     public dispose(): void {
         this.timerManager.dispose(); // 清理所有定时器
         this.decorationType.dispose();
-        this.tagDecorationType.dispose();
         this.disposables.forEach(d => d.dispose());
     }
 
