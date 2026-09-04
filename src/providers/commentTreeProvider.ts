@@ -229,7 +229,7 @@ export class CommentTreeProvider implements vscode.TreeDataProvider<CommentTreeI
             commentNode.command = {
                 command: COMMANDS.GO_TO_COMMENT,
                 title: '跳转到注释',
-                arguments: [filePath, matchedComment?.line || comment.line]
+                arguments: [filePath, matchedComment?.line || comment.line, comment.id]
             };
 
             commentNodes.push(commentNode);

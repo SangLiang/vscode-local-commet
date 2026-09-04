@@ -313,21 +313,29 @@ export function registerCommentCommands(
         }
     });
 
-    const goToCommentCommand = vscode.commands.registerCommand(COMMANDS.GO_TO_COMMENT, async (filePath: string, line: number) => {
+    const goToCommentCommand = vscode.commands.registerCommand(COMMANDS.GO_TO_COMMENT, async (filePath: string, line: number, commentId?: string) => {
         try {
             const uri = vscode.Uri.file(filePath);
             
-            // 首先验证注释是否还能找到对应的代码
-            // 同时查找本地注释和共享注释
             const fileComments = commentManager.getAllComments()[filePath] || [];
             const sharedComments = commentManager.getAllSharedComments()[filePath] || [];
             
-            // 查找目标注释（优先查找本地注释，然后查找共享注释）
-            let targetComment = fileComments.find(c => c.originalLine === line || c.line === line);
+            let targetComment: LocalComment | undefined;
             let isSharedComment = false;
             
+            if (commentId) {
+                targetComment = fileComments.find(c => c.id === commentId);
+                if (!targetComment) {
+                    targetComment = sharedComments.find(c => c.id === commentId);
+                    isSharedComment = true;
+                }
+            }
+            
             if (!targetComment) {
-                // 如果本地注释中没找到，查找共享注释
+                targetComment = fileComments.find(c => c.originalLine === line || c.line === line);
+            }
+            
+            if (!targetComment) {
                 targetComment = sharedComments.find(c => c.line === line);
                 isSharedComment = true;
             }
@@ -416,11 +424,9 @@ export function registerCommentCommands(
                 editor.selection = new vscode.Selection(position, position);
                 editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
                 
-                // 如果位置发生了变化，提示用户
-                if (matchedComment.line !== targetComment.line) {
-                    vscode.window.showInformationMessage(
-                        `注释位置已更新：第 ${targetComment.line + 1} 行 → 第 ${matchedComment.line + 1} 行`
-                    );
+                // 如果位置或行内容发生了变化，静默更新存储，避免下次仍显示旧位置
+                if (matchedComment.line !== targetComment.line || matchedComment.lineContent !== targetComment.lineContent) {
+                    await commentManager.updateCommentLine(uri, targetComment.id, matchedComment.line, matchedComment.lineContent);
                 }
             } else {
                 // 注释无法匹配到代码，检查原始行是否仍然存在

@@ -48,7 +48,8 @@ function toRelativePath(absPath: string, workspaceRoot?: string): string {
 
 export function flattenCommentsToRows(
   comments: FileComments,
-  workspaceRoot?: string
+  workspaceRoot?: string,
+  matchedLineMap?: Map<string, number>
 ): CommentManageRow[] {
   const rows: CommentManageRow[] = [];
   for (const [absPath, fileComments] of Object.entries(comments)) {
@@ -56,10 +57,11 @@ export function flattenCommentsToRows(
       if (!isLocalComment(comment as LocalComment & { userId?: string })) {
         continue;
       }
+      const matchedLine = matchedLineMap?.get(comment.id);
       rows.push({
         id: comment.id,
         filePath: toRelativePath(absPath, workspaceRoot),
-        line: comment.line,
+        line: matchedLine !== undefined ? matchedLine : comment.line,
         summary: toCommentSummary(comment.content),
         tagDeclarations: extractTagDeclarations(comment.content),
         updatedAt: comment.timestamp ? new Date(comment.timestamp).toISOString() : undefined,
