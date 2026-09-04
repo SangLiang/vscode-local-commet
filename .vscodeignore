@@ -1,14 +1,16 @@
 # 源代码文件
 **/*.ts
 **/tsconfig.json
-!file.ts
+
+# 扩展主代码已打包到 out/extension.js，src 下只剩 Webview 模板/资源需要打包
+src/**
+!src/templates/**
+!src/lib/**
+!src/resources/**
 
 # 开发和构建文件
 .vscode/**
 .vscode-test/**
-!src/templates/**
-!src/lib/**
-!src/resources/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
@@ -69,3 +71,17 @@ planning/**
 !images/activity-bar.svg
 images/*.png
 images/*.jpg
+
+# AI 代理/编辑器配置与技能目录，运行时不需要
+.cursor/**
+.opencode/**
+
+# GitHub 工作流与配置，运行时不需要
+.github/**
+
+# 文档站点与开发文档，运行时不需要
+website/**
+docs/**
+
+# 构建脚本，运行时不需要
+scripts/**

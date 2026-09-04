@@ -7,7 +7,7 @@ let BUILD_LOG_LEVEL: string | undefined;
 try {
     // 从 out 目录读取 logger.config.json（编译后的配置文件）
     // 编译后代码在 out/utils/logger.js，需要向上一级到 out 目录
-    const configPath = path.join(__dirname, '../logger.config.json');
+    const configPath = path.join(__dirname, 'logger.config.json');
     if (fs.existsSync(configPath)) {
         const configContent = fs.readFileSync(configPath, 'utf8');
         const config = JSON.parse(configContent);

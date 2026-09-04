@@ -165,6 +165,15 @@ const filesToCopy = [
     }
 ];
 
+const startTime = Date.now();
+
+function formatDuration(ms) {
+    if (ms < 1000) {
+        return `${ms}ms`;
+    }
+    return `${(ms / 1000).toFixed(2)}s`;
+}
+
 console.log('开始复制库文件到 out/lib...');
 
 let copiedCount = 0;
@@ -265,5 +274,8 @@ if (dirFailedCount === 0) {
 } else {
     console.error(`\n 目录复制完成，但有 ${dirFailedCount} 个目录失败`);
     console.error('请确保已运行 npm install 安装依赖');
+    process.exit(1);
 }
+
+console.log(`\n⏱️ copy-lib 总耗时: ${formatDuration(Date.now() - startTime)}`);
 
