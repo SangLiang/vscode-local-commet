@@ -665,6 +665,7 @@
     "@types/cytoscape": "^3.21.9",
     "@types/node": "^25.9.4",
     "@types/vscode": "^1.74.0",
+    "cytoscape": "^3.34.0",
     "cross-env": "^7.0.3",
     "katex": "^0.16.9",
     "marked": "^4.3.0",
@@ -673,7 +674,6 @@
     "vitest": "^2.1.9"
   },
   "dependencies": {
-    "axios": "^1.11.0",
-    "cytoscape": "^3.34.0"
+    "axios": "^1.11.0"
   }
 }
